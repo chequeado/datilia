@@ -1,0 +1,26 @@
+data360-claim-contextualizer
+Copyright (c) 2026 Chequeado
+
+This product includes or adapts code and protocols from the following projects:
+
+1. worldbank/data360-mcp (MIT License + IGO Rider)
+   https://github.com/worldbank/data360-mcp
+   Copyright (c) World Bank Group
+   Used as a service (subprocess) — not modified.
+
+2. worldbank/data-ai-chatbot (Apache License 2.0 + IGO Rider)
+   https://github.com/worldbank/data-ai-chatbot
+   Copyright (c) World Bank Group AI for Data team
+   Code patterns adapted from backend/app/ai/* (MCP client, LLM client, prompts).
+   Files derived from this source carry the original copyright header.
+
+3. worldbank/pcn (MIT License + IGO Rider)
+   https://github.com/worldbank/pcn
+   Copyright (c) World Bank Group
+   PCN verification protocol and optional pcn-core library.
+
+IGO Rider notice: The World Bank Group does not guarantee the accuracy,
+reliability, or completeness of this content. Conclusions and judgments
+expressed herein are those of the authors and do not necessarily reflect
+the views of the World Bank Group, its Board of Executive Directors, or
+the governments they represent.

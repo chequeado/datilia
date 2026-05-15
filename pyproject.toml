@@ -1,0 +1,32 @@
+[project]
+name = "data360-claim-contextualizer"
+version = "0.1.0"
+description = "Chequeado API: contextualizes journalistic claims against World Bank Data360"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=4.2",
+    "djangorestframework>=3.15",
+    "django-cors-headers>=4.3",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "python-dotenv>=1.0",
+    "httpx>=0.27",
+    "openai-agents>=0.0.14",
+    "mcp>=1.0",
+    "fastmcp>=0.1",
+    "gunicorn>=22.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "chequeado_contextualizer.settings"
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100

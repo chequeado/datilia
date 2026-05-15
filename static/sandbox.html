@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chequeado Contextualizer — Sandbox</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="max-w-3xl mx-auto py-10 px-4">
+
+    <div class="mb-8">
+      <h1 class="text-2xl font-bold text-gray-900">Chequeado Contextualizer</h1>
+      <p class="text-sm text-gray-400 mt-1">Sandbox · World Bank Data360</p>
+    </div>
+
+    <!-- Form -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Afirmación <span class="text-red-400">*</span></label>
+        <textarea id="claim" rows="3"
+          placeholder="Ej: Argentina ocupa el puesto 52 entre 159 países según el PBI per cápita del Banco Mundial"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          Contexto <span class="text-gray-400 font-normal">(opcional)</span>
+        </label>
+        <textarea id="context" rows="2"
+          placeholder="Fragmento del artículo u otro contexto relevante"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+      </div>
+      <div class="flex items-end gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Idioma</label>
+          <select id="language" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="es">Español</option>
+            <option value="en">English</option>
+            <option value="pt">Português</option>
+          </select>
+        </div>
+        <button id="submitBtn" onclick="runContextualize()"
+          class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-6 py-2 rounded-lg text-sm transition-colors">
+          Contextualizar
+        </button>
+      </div>
+      <p class="text-xs text-gray-400 mt-3">Ctrl+Enter para enviar</p>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="hidden text-center py-12 text-sm text-gray-400">
+      Consultando datos del Banco Mundial…
+    </div>
+
+    <!-- Error -->
+    <div id="error" class="hidden bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4"></div>
+
+    <!-- Results -->
+    <div id="results" class="hidden space-y-4">
+
+      <!-- Status + Agent analysis -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div class="flex items-center gap-2 mb-3">
+          <span id="statusBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full"></span>
+        </div>
+        <div id="finalText" class="text-sm text-gray-700 leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold"></div>
+      </div>
+
+      <!-- Dataset metadata -->
+      <div id="metadataSection" class="hidden bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-4">Datos utilizados</h2>
+        <div class="space-y-2.5">
+
+          <!-- Indicator name + source link -->
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="text-xs text-gray-400 mb-0.5">Indicador</div>
+              <div id="metaIndicatorName" class="text-sm font-semibold text-gray-800"></div>
+            </div>
+            <a id="metaSourceLink" href="#" target="_blank"
+              class="shrink-0 text-xs text-blue-500 hover:underline flex items-center gap-1 mt-4">
+              Ver en Data360
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+
+          <!-- Definition -->
+          <div id="metaDefinitionRow" class="hidden">
+            <div class="text-xs text-gray-400 mb-0.5">Definición</div>
+            <div id="metaDefinition" class="text-xs text-gray-600 leading-relaxed"></div>
+          </div>
+
+          <!-- Dataset + coverage strip -->
+          <div class="flex flex-wrap gap-x-6 gap-y-1.5 pt-1">
+            <div id="metaDatabaseRow" class="hidden">
+              <div class="text-xs text-gray-400 mb-0.5">Dataset</div>
+              <div id="metaDatabaseName" class="text-xs font-medium text-gray-700"></div>
+            </div>
+            <div id="metaPeriodRow" class="hidden">
+              <div class="text-xs text-gray-400 mb-0.5">Frecuencia</div>
+              <div id="metaPeriodicity" class="text-xs font-medium text-gray-700"></div>
+            </div>
+            <div id="metaUnitRow" class="hidden">
+              <div class="text-xs text-gray-400 mb-0.5">Unidad</div>
+              <div id="metaUnit" class="text-xs font-medium text-gray-700"></div>
+            </div>
+            <div id="metaTimeRow" class="hidden">
+              <div class="text-xs text-gray-400 mb-0.5">Período</div>
+              <div id="metaTimeRange" class="text-xs font-medium text-gray-700"></div>
+            </div>
+          </div>
+
+          <!-- Areas -->
+          <div id="metaCountriesRow" class="hidden">
+            <div class="text-xs text-gray-400 mb-1">Áreas</div>
+            <div id="metaCountries" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Chart (Vega-Lite / Datawrapper tabs) -->
+      <div id="chartSection" class="hidden bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Visualización</h2>
+          <div class="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+            <button id="tabVega" onclick="switchTab('vega')"
+              class="px-3 py-1.5 bg-blue-600 text-white transition-colors">Vega-Lite</button>
+            <button id="tabDw" onclick="switchTab('dw')"
+              class="px-3 py-1.5 bg-white text-gray-500 hover:bg-gray-50 transition-colors">Datawrapper</button>
+          </div>
+        </div>
+
+        <!-- Vega-Lite panel -->
+        <div id="tabPanelVega">
+          <div id="chartParams" class="flex flex-wrap gap-2 text-xs text-gray-500 mb-4"></div>
+          <div id="vegaChart"></div>
+        </div>
+
+        <!-- Datawrapper panel -->
+        <div id="tabPanelDw" class="hidden">
+          <div id="dwIdle" class="flex flex-col items-center justify-center py-8 gap-3">
+            <p class="text-sm text-gray-400">Genera un gráfico publicado en Datawrapper a partir de estos datos.</p>
+            <button onclick="generateDatawrapper()"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors">
+              Generar en Datawrapper
+            </button>
+          </div>
+          <div id="dwLoading" class="hidden text-center py-8 text-sm text-gray-400">
+            Creando gráfico en Datawrapper…
+          </div>
+          <div id="dwError" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3 mb-4"></div>
+          <div id="dwResult" class="hidden space-y-3">
+            <div id="dwEmbed"></div>
+            <div class="flex items-center justify-between text-xs text-gray-400 pt-1">
+              <span>Publicado en Datawrapper</span>
+              <a id="dwLink" href="#" target="_blank"
+                class="text-blue-500 hover:underline flex items-center gap-1">
+                Ver gráfico
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Debug Panel -->
+      <details id="debugSection" open class="hidden bg-white rounded-xl border border-gray-200 shadow-sm">
+        <summary class="px-6 py-4 text-sm font-medium text-gray-600 cursor-pointer select-none hover:text-gray-800">
+          Pipeline · <span id="debugStepCount">0</span> llamadas a herramientas
+        </summary>
+        <div id="debugSteps" class="px-6 pb-6 space-y-2 mt-1"></div>
+      </details>
+
+      <!-- Raw JSON -->
+      <details class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <summary class="px-6 py-4 text-sm font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">
+          JSON completo
+        </summary>
+        <div class="px-6 pb-6">
+          <pre id="rawJson" class="text-xs text-gray-500 overflow-auto max-h-96 bg-gray-50 rounded-lg p-4 mt-2"></pre>
+        </div>
+      </details>
+
+    </div>
+  </div>
+
+  <script>
+    let currentTraceId = null;
+
+    async function runContextualize() {
+      const claim = document.getElementById('claim').value.trim();
+      if (!claim) { document.getElementById('claim').focus(); return; }
+
+      const context  = document.getElementById('context').value.trim();
+      const language = document.getElementById('language').value;
+
+      setLoading(true);
+
+      try {
+        const resp = await fetch('/contextualize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ claim, context: context || undefined, language }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || JSON.stringify(data));
+        renderResults(data);
+      } catch (err) {
+        show('error');
+        document.getElementById('error').textContent = 'Error: ' + err.message;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function renderResults(data) {
+      currentTraceId = data.trace_id || null;
+      hide('error');
+
+      // Reset Datawrapper tab to idle state
+      show('dwIdle'); hide('dwLoading'); hide('dwError'); hide('dwResult');
+      switchTab('vega');
+
+      // ── Status badge ────────────────────────────────────────────────────────
+      const badge = document.getElementById('statusBadge');
+      if (data.is_verifiable) {
+        badge.textContent = 'Verificable';
+        badge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700';
+      } else {
+        badge.textContent = 'No verificable';
+        badge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700';
+      }
+
+      // ── Agent analysis (final_text) ─────────────────────────────────────────
+      document.getElementById('finalText').innerHTML =
+        marked.parse(data.final_text || '');
+
+      // ── Dataset metadata ────────────────────────────────────────────────────
+      if (data.is_verifiable && data.indicator_code) {
+        setText('metaIndicatorName', data.indicator_name || data.indicator_code);
+
+        const link = document.getElementById('metaSourceLink');
+        link.href = data.source_url || `https://data360.worldbank.org/en/indicator/${data.indicator_code}`;
+
+        setTextIf('metaDefinitionRow', 'metaDefinition', data.definition);
+        setTextIf('metaDatabaseRow',   'metaDatabaseName', data.database_name);
+        setTextIf('metaPeriodRow',     'metaPeriodicity',  data.periodicity);
+        setTextIf('metaUnitRow',       'metaUnit',         data.unit);
+
+        const tr = data.time_range || {};
+        if (tr.start_year) {
+          const label = tr.start_year === tr.end_year
+            ? String(tr.start_year)
+            : `${tr.start_year} – ${tr.end_year}`;
+          setText('metaTimeRange', label);
+          show('metaTimeRow');
+        } else {
+          hide('metaTimeRow');
+        }
+
+        const codes = data.area_codes || [];
+        const countriesEl = document.getElementById('metaCountries');
+        countriesEl.innerHTML = '';
+        if (codes.length) {
+          for (const code of codes) {
+            const chip = document.createElement('span');
+            chip.className = 'bg-gray-100 text-gray-600 text-xs font-mono rounded px-2 py-0.5';
+            chip.textContent = code;
+            countriesEl.appendChild(chip);
+          }
+          show('metaCountriesRow');
+        } else {
+          hide('metaCountriesRow');
+        }
+
+        show('metadataSection');
+      } else {
+        hide('metadataSection');
+      }
+
+      // ── Chart ────────────────────────────────────────────────────────────────
+      const chartDiv = document.getElementById('vegaChart');
+      chartDiv.innerHTML = '';
+      if (data.chart_spec) {
+        const cp = data.chart_params || {};
+        const chips = [
+          cp.strategy    && `<span class="bg-blue-50 text-blue-600 rounded px-2 py-0.5 font-medium">${cp.strategy}</span>`,
+          cp.x_field     && `<span class="bg-gray-100 text-gray-500 rounded px-2 py-0.5">x: ${cp.x_field}</span>`,
+          cp.color_field && `<span class="bg-purple-50 text-purple-600 rounded px-2 py-0.5">color: ${cp.color_field}</span>`,
+          cp.facet_field && `<span class="bg-teal-50 text-teal-600 rounded px-2 py-0.5">facet: ${cp.facet_field}</span>`,
+          cp.highlight   && `<span class="bg-amber-50 text-amber-600 rounded px-2 py-0.5">highlight: ${cp.highlight}</span>`,
+          cp.top_n       && `<span class="bg-gray-100 text-gray-500 rounded px-2 py-0.5">top ${cp.top_n}</span>`,
+        ].filter(Boolean);
+        document.getElementById('chartParams').innerHTML = chips.join('');
+        vegaEmbed('#vegaChart', data.chart_spec, {
+          actions: false, renderer: 'svg', theme: 'default',
+        }).catch(err => {
+          chartDiv.textContent = 'Error al renderizar el gráfico: ' + err.message;
+        });
+        show('chartSection');
+      } else {
+        hide('chartSection');
+      }
+
+      // ── Debug + raw JSON ─────────────────────────────────────────────────────
+      renderDebugPanel(data);
+      document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+
+      show('results');
+      document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function setLoading(on) {
+      document.getElementById('submitBtn').disabled = on;
+      on ? show('loading') : hide('loading');
+      if (on) { hide('results'); hide('error'); }
+    }
+
+    function show(id) { document.getElementById(id).classList.remove('hidden'); }
+    function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function setText(id, text) {
+      document.getElementById(id).textContent = text || '';
+    }
+
+    function setTextIf(rowId, textId, value) {
+      if (value) {
+        setText(textId, value);
+        show(rowId);
+      } else {
+        hide(rowId);
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runContextualize();
+    });
+
+    // ── Debug panel ──────────────────────────────────────────────────────────
+
+    const TOOL_META = {
+      'data360_search_indicators':   { label: 'Búsqueda de indicadores',    color: 'border-blue-400'    },
+      'data360_list_indicators':     { label: 'Listar indicadores',          color: 'border-blue-300'    },
+      'data360_get_metadata':        { label: 'Metadatos del indicador',     color: 'border-emerald-500' },
+      'data360_get_data':            { label: 'Obtener datos',               color: 'border-emerald-600' },
+      'data360_get_disaggregation':  { label: 'Desagregación',               color: 'border-emerald-400' },
+      'data360_find_codelist_value': { label: 'Buscar en codelist',          color: 'border-gray-400'    },
+      'data360_expand_country_group':{ label: 'Expandir grupo de países',    color: 'border-gray-400'    },
+      'data360_summarize_data':      { label: 'Resumen de datos',            color: 'border-indigo-400'  },
+      'data360_rank_countries':      { label: 'Ranking de países',           color: 'border-indigo-500'  },
+      'data360_compare_countries':   { label: 'Comparar países',             color: 'border-indigo-500'  },
+    };
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function parseToolResult(result) {
+      if (result === null || result === undefined) return null;
+      let text = (typeof result === 'object' && result !== null)
+        ? (result.text !== undefined ? result.text : JSON.stringify(result))
+        : String(result);
+      text = text.replace(/^root=/, '').trim();
+      try { return JSON.parse(text); } catch { return text; }
+    }
+
+    function getArgsSummary(args) {
+      if (!args || !Object.keys(args).length) return '';
+      const priority = ['query', 'queries', 'indicator_id', 'database_id', 'country_codes', 'country_code'];
+      for (const key of priority) {
+        if (args[key] !== undefined) {
+          const raw = Array.isArray(args[key]) ? args[key].join(', ') : String(args[key]);
+          return `${key}: ${raw.length > 60 ? raw.slice(0, 60) + '…' : raw}`;
+        }
+      }
+      const [k, v] = Object.entries(args)[0];
+      return `${k}: ${String(v).slice(0, 60)}`;
+    }
+
+    function renderDebugPanel(data) {
+      const trace = data.tool_trace || [];
+      const container = document.getElementById('debugSteps');
+      document.getElementById('debugStepCount').textContent = trace.length;
+      container.innerHTML = '';
+      if (!trace.length && !data.final_text) { hide('debugSection'); return; }
+
+      let stepNum = 1;
+      for (const entry of trace) {
+        container.appendChild(buildDebugStep(entry, stepNum++));
+      }
+
+      if (data.final_text) {
+        container.appendChild(buildSyntheticStep('Análisis del agente', () => renderMarkdown(data.final_text)));
+      }
+
+      show('debugSection');
+    }
+
+    function buildSyntheticStep(label, renderFn) {
+      const details = document.createElement('details');
+      details.className = 'border-l-4 border-gray-300 rounded-r-lg overflow-hidden';
+      const summary = document.createElement('summary');
+      summary.className = 'flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none bg-gray-50 hover:bg-gray-100';
+      summary.innerHTML = `
+        <span class="text-xs font-mono text-gray-300 shrink-0 w-5 text-right">—</span>
+        <span class="text-sm font-medium text-gray-500 shrink-0">${escapeHtml(label)}</span>
+      `;
+      details.appendChild(summary);
+      const body = document.createElement('div');
+      body.className = 'bg-white px-4 py-4 border-t border-gray-100';
+      body.appendChild(renderFn());
+      details.appendChild(body);
+      return details;
+    }
+
+    function renderMarkdown(text) {
+      const div = document.createElement('div');
+      div.className = 'text-sm text-gray-700 leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold';
+      div.innerHTML = marked.parse(text || '');
+      return div;
+    }
+
+    function buildDebugStep(entry, stepNum) {
+      const meta = TOOL_META[entry.tool] || { label: entry.tool, color: 'border-gray-300' };
+      const parsed = parseToolResult(entry.result);
+
+      const details = document.createElement('details');
+      details.className = `border-l-4 ${meta.color} rounded-r-lg overflow-hidden`;
+
+      const summary = document.createElement('summary');
+      summary.className = 'flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none bg-gray-50 hover:bg-gray-100';
+      const argsSummary = getArgsSummary(entry.arguments);
+      summary.innerHTML = `
+        <span class="text-xs font-mono text-gray-400 shrink-0 w-5 text-right">${stepNum}</span>
+        <span class="text-sm font-medium text-gray-700 shrink-0">${escapeHtml(meta.label)}</span>
+        ${argsSummary ? `<span class="text-xs text-gray-400 truncate">${escapeHtml(argsSummary)}</span>` : ''}
+      `;
+      details.appendChild(summary);
+
+      const body = document.createElement('div');
+      body.className = 'bg-white px-4 py-4 border-t border-gray-100 space-y-4';
+
+      if (entry.arguments && Object.keys(entry.arguments).length) {
+        const sec = document.createElement('div');
+        sec.innerHTML = '<div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Parámetros</div>';
+        sec.appendChild(renderArgsTable(entry.arguments));
+        body.appendChild(sec);
+      }
+
+      if (parsed !== null) {
+        const sec = document.createElement('div');
+        sec.innerHTML = '<div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Resultado</div>';
+        sec.appendChild(renderToolResult(entry.tool, parsed));
+        body.appendChild(sec);
+      }
+
+      details.appendChild(body);
+      return details;
+    }
+
+    function renderArgsTable(args) {
+      const table = document.createElement('table');
+      table.className = 'text-xs w-full';
+      for (const [key, val] of Object.entries(args)) {
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td');
+        td1.className = 'pr-4 py-0.5 font-mono text-gray-500 whitespace-nowrap align-top w-1/4';
+        td1.textContent = key;
+        const td2 = document.createElement('td');
+        td2.className = 'py-0.5 text-gray-700 break-all';
+        td2.textContent = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        tr.appendChild(td1); tr.appendChild(td2);
+        table.appendChild(tr);
+      }
+      return table;
+    }
+
+    function renderToolResult(toolName, parsed) {
+      if (toolName === 'data360_search_indicators')  return renderSearchResult(parsed);
+      if (toolName === 'data360_get_data')            return renderDataResult(parsed);
+      if (toolName === 'data360_get_metadata')         return renderMetadataResult(parsed);
+      if (toolName === 'data360_rank_countries')       return renderRankingResult(parsed);
+      if (toolName === 'data360_compare_countries')    return renderCompareResult(parsed);
+      return renderGenericResult(parsed);
+    }
+
+    // ── Tool result renderers ────────────────────────────────────────────────
+
+    function renderSearchResult(parsed) {
+      const div = document.createElement('div');
+      const indicators = parsed.indicators || parsed.items || (Array.isArray(parsed) ? parsed : []);
+      if (!indicators.length) {
+        div.className = 'text-xs text-gray-400 italic';
+        div.textContent = parsed.error || 'Sin resultados';
+        return div;
+      }
+      const meta = document.createElement('div');
+      meta.className = 'text-xs text-gray-400 mb-2';
+      meta.textContent = `${indicators.length} indicador${indicators.length !== 1 ? 'es' : ''} encontrado${indicators.length !== 1 ? 's' : ''}${parsed.total_count ? ` de ${parsed.total_count}` : ''}`;
+      div.appendChild(meta);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'overflow-x-auto';
+      const table = document.createElement('table');
+      table.className = 'text-xs w-full border-collapse';
+      table.innerHTML = `<thead><tr class="text-left">
+        <th class="pr-3 pb-1 font-semibold text-gray-500 whitespace-nowrap">ID</th>
+        <th class="pr-3 pb-1 font-semibold text-gray-500">Nombre</th>
+        <th class="pb-1 font-semibold text-gray-500 whitespace-nowrap">Dataset</th>
+      </tr></thead>`;
+      const tbody = document.createElement('tbody');
+      for (const ind of indicators.slice(0, 10)) {
+        const tr = document.createElement('tr');
+        tr.className = 'border-t border-gray-100';
+        tr.innerHTML = `
+          <td class="pr-3 py-1 font-mono text-gray-500 whitespace-nowrap align-top">${escapeHtml(ind.idno || '')}</td>
+          <td class="pr-3 py-1 text-gray-700 align-top">${escapeHtml(ind.name || '')}</td>
+          <td class="py-1 text-gray-400 align-top whitespace-nowrap">${escapeHtml(ind.database_name || ind.database_id || '')}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      div.appendChild(wrap);
+      if (indicators.length > 10) {
+        const more = document.createElement('div');
+        more.className = 'text-xs text-gray-400 mt-1';
+        more.textContent = `… y ${indicators.length - 10} más`;
+        div.appendChild(more);
+      }
+      return div;
+    }
+
+    function renderRankingResult(parsed) {
+      const div = document.createElement('div');
+      if (parsed.error) {
+        div.className = 'text-xs text-red-500 italic';
+        div.textContent = parsed.error;
+        return div;
+      }
+
+      // Header strip
+      const header = document.createElement('div');
+      header.className = 'text-xs text-gray-400 mb-2 flex flex-wrap gap-x-4';
+      if (parsed.indicator) header.innerHTML += `<span><b class="text-gray-600">${escapeHtml(parsed.indicator)}</b></span>`;
+      if (parsed.year)      header.innerHTML += `<span>Año: <b class="text-gray-600">${escapeHtml(String(parsed.year))}</b></span>`;
+      if (parsed.unit)      header.innerHTML += `<span>Unidad: <b class="text-gray-600">${escapeHtml(parsed.unit)}</b></span>`;
+      div.appendChild(header);
+
+      const rankings = parsed.rankings || [];
+      if (!rankings.length) {
+        const empty = document.createElement('div');
+        empty.className = 'text-xs text-gray-400 italic';
+        empty.textContent = 'Sin resultados';
+        div.appendChild(empty);
+        return div;
+      }
+
+      div.appendChild(renderRankingTable(rankings));
+
+      if (parsed.excluded_count > 0) {
+        const note = document.createElement('div');
+        note.className = 'text-xs text-gray-400 mt-1';
+        note.textContent = `${parsed.excluded_count} país${parsed.excluded_count !== 1 ? 'es' : ''} sin datos`;
+        div.appendChild(note);
+      }
+      return div;
+    }
+
+    function renderCompareResult(parsed) {
+      const div = document.createElement('div');
+      if (parsed.error) {
+        div.className = 'text-xs text-red-500 italic';
+        div.textContent = parsed.error;
+        return div;
+      }
+
+      const header = document.createElement('div');
+      header.className = 'text-xs text-gray-400 mb-2 flex flex-wrap gap-x-4';
+      if (parsed.indicator) header.innerHTML += `<span><b class="text-gray-600">${escapeHtml(parsed.indicator)}</b></span>`;
+      if (parsed.unit)      header.innerHTML += `<span>Unidad: <b class="text-gray-600">${escapeHtml(parsed.unit)}</b></span>`;
+      div.appendChild(header);
+
+      const snapshot = parsed.snapshot;
+      if (snapshot) {
+        const yearLabel = document.createElement('div');
+        yearLabel.className = 'text-xs font-semibold text-gray-500 mb-1';
+        yearLabel.textContent = `Snapshot · ${snapshot.year || ''}`;
+        div.appendChild(yearLabel);
+        div.appendChild(renderRankingTable(snapshot.rankings || []));
+      }
+
+      const ts = parsed.time_series;
+      if (ts && ts.series && Object.keys(ts.series).length) {
+        const tsLabel = document.createElement('div');
+        tsLabel.className = 'text-xs font-semibold text-gray-500 mt-3 mb-1';
+        tsLabel.textContent = `Serie temporal · ${ts.year_range || ''}`;
+        div.appendChild(tsLabel);
+
+        const countries = Object.keys(ts.series);
+        const allYears = [...new Set(
+          countries.flatMap(c => (ts.series[c] || []).map(p => p[0]))
+        )].sort();
+
+        const wrap = document.createElement('div');
+        wrap.className = 'overflow-x-auto';
+        const table = document.createElement('table');
+        table.className = 'text-xs w-full border-collapse';
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headerRow.innerHTML = `<th class="pr-3 pb-1 text-left font-semibold text-gray-500 whitespace-nowrap">País</th>` +
+          allYears.map(y => `<th class="pr-3 pb-1 text-right font-semibold text-gray-500 whitespace-nowrap">${y}</th>`).join('');
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        for (const country of countries) {
+          const points = ts.series[country] || [];
+          const byYear = {};
+          for (const p of points) byYear[p[0]] = p[1];
+          const tr = document.createElement('tr');
+          tr.className = 'border-t border-gray-100';
+          tr.innerHTML = `<td class="pr-3 py-1 font-mono text-gray-600 whitespace-nowrap">${escapeHtml(country)}</td>` +
+            allYears.map(y => {
+              const v = byYear[y];
+              return `<td class="pr-3 py-1 text-right text-gray-700">${v !== undefined ? Number(v).toLocaleString('es', {maximumFractionDigits: 2}) : '—'}</td>`;
+            }).join('');
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        div.appendChild(wrap);
+      }
+
+      return div;
+    }
+
+    function renderRankingTable(rankings) {
+      const wrap = document.createElement('div');
+      wrap.className = 'overflow-x-auto';
+      const table = document.createElement('table');
+      table.className = 'text-xs w-full border-collapse';
+      table.innerHTML = `<thead><tr class="text-left">
+        <th class="pr-3 pb-1 font-semibold text-gray-500">#</th>
+        <th class="pr-3 pb-1 font-semibold text-gray-500">Código</th>
+        <th class="pr-3 pb-1 font-semibold text-gray-500">País</th>
+        <th class="pb-1 font-semibold text-gray-500 text-right">Valor</th>
+      </tr></thead>`;
+      const tbody = document.createElement('tbody');
+      for (const row of rankings.slice(0, 15)) {
+        const tr = document.createElement('tr');
+        tr.className = 'border-t border-gray-100';
+        const value = row.value !== undefined ? row.value : row.obs_value;
+        tr.innerHTML = `
+          <td class="pr-3 py-1 text-gray-400">${row.rank ?? ''}</td>
+          <td class="pr-3 py-1 font-mono text-gray-500">${escapeHtml(row.code || row.ref_area || '')}</td>
+          <td class="pr-3 py-1 text-gray-700">${escapeHtml(row.country || row.country_name || '')}</td>
+          <td class="py-1 text-right text-gray-700">${value !== undefined ? Number(value).toLocaleString('es', {maximumFractionDigits: 2}) : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      if (rankings.length > 15) {
+        const more = document.createElement('div');
+        more.className = 'text-xs text-gray-400 mt-1';
+        more.textContent = `… y ${rankings.length - 15} más`;
+        wrap.appendChild(more);
+      }
+      return wrap;
+    }
+
+    function renderDataResult(parsed) {
+      const div = document.createElement('div');
+      const metadata = parsed.metadata || {};
+
+      if (metadata.name || metadata.measurement_unit) {
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'mb-3 text-xs space-y-0.5';
+        for (const field of ['name', 'measurement_unit', 'idno']) {
+          if (metadata[field]) {
+            const row = document.createElement('div');
+            row.innerHTML = `<span class="font-mono text-gray-500">${escapeHtml(field)}</span> <span class="text-gray-700">${escapeHtml(metadata[field])}</span>`;
+            metaDiv.appendChild(row);
+          }
+        }
+        div.appendChild(metaDiv);
+      }
+
+      const data = parsed.data || [];
+      if (!data.length) {
+        const empty = document.createElement('div');
+        empty.className = 'text-xs text-gray-400 italic';
+        empty.textContent = parsed.error || 'Sin datos';
+        div.appendChild(empty);
+        return div;
+      }
+
+      const info = document.createElement('div');
+      info.className = 'text-xs text-gray-400 mb-2';
+      info.textContent = `${data.length} punto${data.length !== 1 ? 's' : ''} de datos${parsed.total_count ? ` de ${parsed.total_count}` : ''}`;
+      div.appendChild(info);
+
+      const fixedCols = ['REF_AREA', 'TIME_PERIOD', 'OBS_VALUE'];
+      const extraCols = Object.keys(data[0] || {}).filter(k => !fixedCols.includes(k) && k !== 'claim_id').slice(0, 2);
+      const cols = [...fixedCols, ...extraCols];
+
+      const wrap = document.createElement('div');
+      wrap.className = 'overflow-x-auto';
+      const table = document.createElement('table');
+      table.className = 'text-xs w-full border-collapse';
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      headerRow.className = 'text-left';
+      for (const col of cols) {
+        const th = document.createElement('th');
+        th.className = 'pr-3 pb-1 font-semibold text-gray-500 whitespace-nowrap';
+        th.textContent = col;
+        headerRow.appendChild(th);
+      }
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for (const row of data.slice(0, 10)) {
+        const tr = document.createElement('tr');
+        tr.className = 'border-t border-gray-100';
+        for (const col of cols) {
+          const td = document.createElement('td');
+          td.className = 'pr-3 py-1 text-gray-700 whitespace-nowrap';
+          td.textContent = row[col] !== undefined ? String(row[col]) : '';
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      div.appendChild(wrap);
+      if (data.length > 10) {
+        const more = document.createElement('div');
+        more.className = 'text-xs text-gray-400 mt-1';
+        more.textContent = `… y ${data.length - 10} puntos más`;
+        div.appendChild(more);
+      }
+      return div;
+    }
+
+    function renderMetadataResult(parsed) {
+      const div = document.createElement('div');
+      const meta = parsed.indicator_metadata || parsed;
+      if (!meta || typeof meta !== 'object') return renderGenericResult(parsed);
+
+      const keyFields = ['name', 'idno', 'measurement_unit', 'periodicity', 'definition', 'source', 'base_period'];
+      const table = document.createElement('table');
+      table.className = 'text-xs w-full';
+      for (const field of keyFields) {
+        const val = meta[field];
+        if (val === undefined || val === null || val === '') continue;
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td');
+        td1.className = 'pr-4 py-0.5 font-mono text-gray-500 whitespace-nowrap align-top w-1/4';
+        td1.textContent = field;
+        const td2 = document.createElement('td');
+        td2.className = 'py-0.5 text-gray-700';
+        const text = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        td2.textContent = text.length > 300 ? text.slice(0, 300) + '…' : text;
+        tr.appendChild(td1); tr.appendChild(td2);
+        table.appendChild(tr);
+      }
+      div.appendChild(table);
+
+      const disagg = parsed.disaggregation_options;
+      if (disagg && disagg.length) {
+        const sec = document.createElement('div');
+        sec.className = 'mt-3';
+        sec.innerHTML = '<div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Desagregaciones disponibles</div>';
+        const list = document.createElement('div');
+        list.className = 'text-xs text-gray-600';
+        list.textContent = disagg.map(d => d.name || d.id || JSON.stringify(d)).join(', ');
+        sec.appendChild(list);
+        div.appendChild(sec);
+      }
+      return div;
+    }
+
+    function renderGenericResult(parsed) {
+      const pre = document.createElement('pre');
+      pre.className = 'text-xs text-gray-500 overflow-auto max-h-48 bg-gray-50 rounded p-3';
+      pre.textContent = typeof parsed === 'string' ? parsed : JSON.stringify(parsed, null, 2);
+      return pre;
+    }
+
+    // ── Visualization tabs ───────────────────────────────────────────────────
+
+    function switchTab(tab) {
+      const isVega = tab === 'vega';
+      document.getElementById('tabPanelVega').classList.toggle('hidden', !isVega);
+      document.getElementById('tabPanelDw').classList.toggle('hidden', isVega);
+      document.getElementById('tabVega').className =
+        `px-3 py-1.5 transition-colors ${isVega ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`;
+      document.getElementById('tabDw').className =
+        `px-3 py-1.5 transition-colors ${!isVega ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`;
+    }
+
+    async function generateDatawrapper() {
+      if (!currentTraceId) return;
+      hide('dwIdle'); show('dwLoading'); hide('dwError'); hide('dwResult');
+
+      try {
+        const resp = await fetch(`/contextualize/${currentTraceId}/datawrapper`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || JSON.stringify(data));
+
+        hide('dwLoading');
+        const embedDiv = document.getElementById('dwEmbed');
+        embedDiv.innerHTML = data.embed_code ||
+          `<iframe src="${data.chart_url}" width="100%" height="400" frameborder="0" scrolling="no"></iframe>`;
+        document.getElementById('dwLink').href = data.chart_url;
+        show('dwResult');
+      } catch (err) {
+        hide('dwLoading');
+        document.getElementById('dwError').textContent = 'Error: ' + err.message;
+        show('dwError');
+        show('dwIdle');
+      }
+    }
+  </script>
+</body>
+</html>
