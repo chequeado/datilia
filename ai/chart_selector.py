@@ -27,6 +27,11 @@ You will receive:
 Your goal is to pick the strategy that best communicates the story in the claim and finding.
 You must assign each visual encoding channel to a real column name from the data.
 
+Output fields:
+- strategy, x_field, y_field, color_field, facet_field, highlight, top_n: chart type and encoding (see below)
+- title: override the chart title (e.g. if the user asks to translate it or rewrite it); null to keep the default
+- subtitle: override the chart subtitle (e.g. if the user asks to translate it or rewrite it); null to keep the default
+
 Available strategies:
 - "top_k"               Horizontal bars, top-N areas by value — ranking story, single year
 - "top_k_others"        Horizontal bars, top-N + aggregated "Otros" bar — ranking where one specific area needs to be shown even if outside top-N
@@ -103,6 +108,8 @@ class ChartParams(BaseModel):
     facet_field: str | None = None
     highlight: str | None = None
     top_n: int | None = None
+    title: str | None = None
+    subtitle: str | None = None
 
 
 def _describe_data(data_context: dict[str, Any]) -> str:
@@ -144,17 +151,37 @@ def _describe_data(data_context: dict[str, Any]) -> str:
 
 
 async def select_async(
-    claim: str, data_context: dict[str, Any], *, final_text: str = ""
+    claim: str,
+    data_context: dict[str, Any],
+    *,
+    final_text: str = "",
+    correction: str | None = None,
 ) -> ChartParams:
     indicator_name = data_context.get("indicator_name", "")
     unit = data_context.get("unit", "")
     data_description = _describe_data(data_context)
 
+    time_range = data_context.get("time_range", {})
+    start_year = time_range.get("start_year")
+    end_year = time_range.get("end_year")
+    year_label = (
+        str(start_year) if start_year == end_year
+        else f"{start_year}–{end_year}"
+    ) if start_year else ""
+    current_subtitle = f"{year_label} · {unit}" if unit else year_label
+
     unit_note = f" (unit: {unit})" if unit else ""
     finding_block = f"Finding (agent's conclusion):\n{final_text}\n\n" if final_text else ""
+    correction_block = f"User correction request:\n{correction}\n\n" if correction else ""
+    current_title_block = (
+        f"Current chart title: {indicator_name}\nCurrent chart subtitle: {current_subtitle}\n\n"
+        if correction else ""
+    )
     user_msg = (
         f"Claim: {claim}\n\n"
         f"{finding_block}"
+        f"{correction_block}"
+        f"{current_title_block}"
         f"Indicator: {indicator_name}{unit_note}\n\n"
         f"Dataset columns:\n{data_description}"
     )

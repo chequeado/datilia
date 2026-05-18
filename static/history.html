@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Historial — Chequeado Contextualizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="max-w-3xl mx-auto py-10 px-4">
+
+    <div class="mb-8 flex items-start justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Historial</h1>
+        <p class="text-sm text-gray-400 mt-1">Contextualizaciones anteriores</p>
+      </div>
+      <a href="/" class="text-sm text-blue-500 hover:underline mt-1">← Nueva consulta</a>
+    </div>
+
+    <div id="loading" class="text-center py-12 text-sm text-gray-400">Cargando…</div>
+    <div id="error" class="hidden bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4"></div>
+    <div id="empty" class="hidden text-center py-12 text-sm text-gray-400">No hay contextualizaciones todavía.</div>
+
+    <div id="list" class="hidden space-y-3"></div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="hidden flex items-center justify-between mt-6 text-sm text-gray-500">
+      <button id="prevBtn" onclick="loadPage(currentPage - 1)"
+        class="px-4 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+        ← Anterior
+      </button>
+      <span id="pageInfo"></span>
+      <button id="nextBtn" onclick="loadPage(currentPage + 1)"
+        class="px-4 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+        Siguiente →
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    let currentPage = 1;
+    let totalPages = 1;
+
+    const STATUS_LABELS = {
+      ok:             { label: 'Verificable',     cls: 'bg-green-100 text-green-700' },
+      not_verifiable: { label: 'No verificable',  cls: 'bg-yellow-100 text-yellow-700' },
+      error:          { label: 'Error',            cls: 'bg-red-100 text-red-700' },
+      pending:        { label: 'Pendiente',        cls: 'bg-gray-100 text-gray-500' },
+    };
+
+    const LANG_LABELS = { es: 'ES', en: 'EN', pt: 'PT' };
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('es', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    function fmtDuration(ms) {
+      if (!ms) return '';
+      if (ms < 1000) return `${ms}ms`;
+      return `${(ms / 1000).toFixed(1)}s`;
+    }
+
+    async function loadPage(page) {
+      currentPage = page;
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('list').classList.add('hidden');
+      document.getElementById('pagination').classList.add('hidden');
+      document.getElementById('error').classList.add('hidden');
+      document.getElementById('empty').classList.add('hidden');
+
+      try {
+        const resp = await fetch(`/runs?page=${page}`);
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || JSON.stringify(data));
+
+        document.getElementById('loading').classList.add('hidden');
+
+        if (!data.results.length) {
+          document.getElementById('empty').classList.remove('hidden');
+          return;
+        }
+
+        totalPages = Math.ceil(data.total / data.page_size);
+        renderList(data.results);
+        renderPagination(data.total, data.page_size);
+      } catch (err) {
+        document.getElementById('loading').classList.add('hidden');
+        const el = document.getElementById('error');
+        el.textContent = 'Error al cargar el historial: ' + err.message;
+        el.classList.remove('hidden');
+      }
+    }
+
+    function renderList(runs) {
+      const container = document.getElementById('list');
+      container.innerHTML = '';
+      for (const run of runs) {
+        const st = STATUS_LABELS[run.status] || { label: run.status, cls: 'bg-gray-100 text-gray-500' };
+        const hasCorrestions = run.latest_trace_id && run.latest_trace_id !== run.trace_id;
+        const card = document.createElement('a');
+        card.href = `/run/${run.latest_trace_id || run.trace_id}`;
+        card.className = 'block bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:border-blue-300 hover:shadow transition-all';
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <p class="text-sm text-gray-800 font-medium leading-snug line-clamp-2 flex-1">${escapeHtml(run.claim)}</p>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${hasCorrestions ? `<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">corregido</span>` : ''}
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${st.cls}">${st.label}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 mt-2 text-xs text-gray-400">
+            <span>${fmtDate(run.created_at)}</span>
+            ${run.duration_ms ? `<span>${fmtDuration(run.duration_ms)}</span>` : ''}
+            <span class="font-mono uppercase">${LANG_LABELS[run.language] || run.language}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      }
+      container.classList.remove('hidden');
+    }
+
+    function renderPagination(total, pageSize) {
+      totalPages = Math.ceil(total / pageSize);
+      if (totalPages <= 1) return;
+
+      document.getElementById('pageInfo').textContent = `Página ${currentPage} de ${totalPages}`;
+      document.getElementById('prevBtn').disabled = currentPage <= 1;
+      document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+      document.getElementById('pagination').classList.remove('hidden');
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    loadPage(1);
+  </script>
+</body>
+</html>

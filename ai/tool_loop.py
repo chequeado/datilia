@@ -17,10 +17,13 @@ async def _run_async(
     claim: str,
     context: str | None = None,
     language: str = "es",
+    correction: str | None = None,
 ) -> dict[str, Any]:
     user_message = f"Claim: {claim}"
     if context:
-        user_message += f"\n\nContext: {context}"
+        user_message += f"\n\nBackground text (read-only context to understand the claim above — do NOT verify or investigate anything else mentioned in this text):\n{context}"
+    if correction:
+        user_message += f"\n\nCorrection request from user (a previous analysis was done — please adjust your research accordingly):\n{correction}"
     if language != "es":
         user_message += f"\n\nPlease respond in: {language}"
 

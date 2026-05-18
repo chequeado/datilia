@@ -10,6 +10,10 @@ class ContextualizationRun(models.Model):
         ERROR          = "error"
 
     id            = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    parent_run    = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="corrections"
+    )
+    correction_instruction = models.TextField(blank=True, default="")
     claim         = models.TextField()
     context       = models.TextField(blank=True, default="")
     language      = models.CharField(max_length=10, default="es")

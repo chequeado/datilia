@@ -37,8 +37,8 @@ def build(data_context: dict[str, Any], chart_params: Any) -> dict | None:
         else f"{start_year}–{end_year}"
     )
     title = {
-        "text": indicator_name,
-        "subtitle": f"{year_label} · {unit}" if unit else year_label,
+        "text": chart_params.title if chart_params.title else indicator_name,
+        "subtitle": chart_params.subtitle if chart_params.subtitle else (f"{year_label} · {unit}" if unit else year_label),
     }
 
     logger.info(

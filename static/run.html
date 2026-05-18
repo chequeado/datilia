@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chequeado Contextualizer — Sandbox</title>
+  <title>Contextualización — Chequeado Contextualizer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@6"></script>
@@ -13,47 +13,29 @@
 <body class="bg-gray-50 min-h-screen">
   <div class="max-w-3xl mx-auto py-10 px-4">
 
-    <div class="mb-8">
-      <h1 class="text-2xl font-bold text-gray-900">Chequeado Contextualizer</h1>
-      <p class="text-sm text-gray-400 mt-1">Sandbox · World Bank Data360</p>
+    <div class="mb-8 flex items-start justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Chequeado Contextualizer</h1>
+        <p id="claimTitle" class="text-sm text-gray-400 mt-1 line-clamp-2"></p>
+      </div>
+      <a href="/history" class="text-sm text-blue-500 hover:underline mt-1 shrink-0 ml-4">← Historial</a>
     </div>
 
-    <!-- Form -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Afirmación <span class="text-red-400">*</span></label>
-        <textarea id="claim" rows="3"
-          placeholder="Ej: Argentina ocupa el puesto 52 entre 159 países según el PBI per cápita del Banco Mundial"
-          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+    <!-- Correction banner (shown when viewing a correction) -->
+    <div id="correctionBanner" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-3 text-sm">
+      <svg class="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+      </svg>
+      <div class="flex-1">
+        <span class="font-medium text-amber-800">Corrección aplicada:</span>
+        <span id="correctionInstructionText" class="text-amber-700 ml-1"></span>
       </div>
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">
-          Contexto <span class="text-gray-400 font-normal">(opcional)</span>
-        </label>
-        <textarea id="context" rows="2"
-          placeholder="Fragmento del artículo u otro contexto relevante"
-          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
-      </div>
-      <div class="flex items-end gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Idioma</label>
-          <select id="language" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="es">Español</option>
-            <option value="en">English</option>
-            <option value="pt">Português</option>
-          </select>
-        </div>
-        <button id="submitBtn" onclick="runContextualize()"
-          class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-6 py-2 rounded-lg text-sm transition-colors">
-          Contextualizar
-        </button>
-      </div>
-      <p class="text-xs text-gray-400 mt-3">Ctrl+Enter para enviar</p>
+      <a id="correctionParentLink" href="#" class="shrink-0 text-xs text-amber-600 hover:underline whitespace-nowrap">Ver original</a>
     </div>
 
     <!-- Loading -->
-    <div id="loading" class="hidden text-center py-12 text-sm text-gray-400">
-      Consultando datos del Banco Mundial…
+    <div id="loading" class="text-center py-12 text-sm text-gray-400">
+      Cargando contextualización…
     </div>
 
     <!-- Error -->
@@ -66,8 +48,27 @@
       <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         <div class="flex items-center gap-2 mb-3">
           <span id="statusBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full"></span>
+          <span id="metaLine" class="text-xs text-gray-400"></span>
         </div>
         <div id="finalText" class="text-sm text-gray-700 leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold"></div>
+
+        <!-- Inline data correction -->
+        <div id="dataCorrectionForm" class="hidden mt-4 pt-4 border-t border-gray-100">
+          <textarea id="dataCorrectionInstruction"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-300"
+            rows="2"
+            placeholder="Ej: usá dólares constantes en vez de PPA, o limitá el período a los últimos 5 años…"></textarea>
+          <div id="dataCorrectionError" class="hidden text-xs text-red-600 mt-2"></div>
+          <div class="flex justify-end mt-2">
+            <button id="dataCorrectionBtn" onclick="submitDataCorrection()"
+              class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors">
+              Pedir correcciones
+            </button>
+          </div>
+          <div id="dataCorrectionLoading" class="hidden mt-2 text-center text-sm text-gray-400 py-1">
+            Aplicando corrección…
+          </div>
+        </div>
       </div>
 
       <!-- Dataset metadata -->
@@ -75,7 +76,6 @@
         <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-4">Datos utilizados</h2>
         <div class="space-y-2.5">
 
-          <!-- Indicator name + source link -->
           <div class="flex items-start justify-between gap-4">
             <div>
               <div class="text-xs text-gray-400 mb-0.5">Indicador</div>
@@ -91,13 +91,11 @@
             </a>
           </div>
 
-          <!-- Definition -->
           <div id="metaDefinitionRow" class="hidden">
             <div class="text-xs text-gray-400 mb-0.5">Definición</div>
             <div id="metaDefinition" class="text-xs text-gray-600 leading-relaxed"></div>
           </div>
 
-          <!-- Dataset + coverage strip -->
           <div class="flex flex-wrap gap-x-6 gap-y-1.5 pt-1">
             <div id="metaDatabaseRow" class="hidden">
               <div class="text-xs text-gray-400 mb-0.5">Dataset</div>
@@ -117,7 +115,6 @@
             </div>
           </div>
 
-          <!-- Areas -->
           <div id="metaCountriesRow" class="hidden">
             <div class="text-xs text-gray-400 mb-1">Áreas</div>
             <div id="metaCountries" class="flex flex-wrap gap-1.5"></div>
@@ -138,13 +135,11 @@
           </div>
         </div>
 
-        <!-- Vega-Lite panel -->
         <div id="tabPanelVega">
           <div id="chartParams" class="flex flex-wrap gap-2 text-xs text-gray-500 mb-4"></div>
           <div id="vegaChart"></div>
         </div>
 
-        <!-- Datawrapper panel -->
         <div id="tabPanelDw" class="hidden">
           <div id="dwIdle" class="flex flex-col items-center justify-center py-8 gap-3">
             <p class="text-sm text-gray-400">Genera un gráfico publicado en Datawrapper a partir de estos datos.</p>
@@ -172,6 +167,24 @@
             </div>
           </div>
         </div>
+
+        <!-- Inline chart correction -->
+        <div class="mt-4 pt-4 border-t border-gray-100">
+          <textarea id="chartCorrectionInstruction"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-300"
+            rows="2"
+            placeholder="Ej: cambiá el tipo de gráfico a barras, o mostrá solo los últimos 10 países…"></textarea>
+          <div id="chartCorrectionError" class="hidden text-xs text-red-600 mt-2"></div>
+          <div class="flex justify-end mt-2">
+            <button id="chartCorrectionBtn" onclick="submitChartCorrection()"
+              class="bg-white border border-gray-300 hover:border-blue-400 hover:text-blue-600 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors">
+              Actualizar gráfico
+            </button>
+          </div>
+          <div id="chartCorrectionLoading" class="hidden mt-2 text-center text-sm text-gray-400 py-1">
+            Aplicando corrección…
+          </div>
+        </div>
       </div>
 
       <!-- Debug Panel -->
@@ -192,47 +205,86 @@
         </div>
       </details>
 
+      <!-- Corrections history (shown on root runs that have been corrected) -->
+      <div id="correctionsHistory" class="hidden bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Versiones anteriores</h2>
+        <div id="correctionsList" class="space-y-2"></div>
+      </div>
+
     </div>
+
+
   </div>
 
   <script>
     let currentTraceId = null;
+    let rootTraceId = null;
 
-    async function runContextualize() {
-      const claim = document.getElementById('claim').value.trim();
-      if (!claim) { document.getElementById('claim').focus(); return; }
+    // ── Bootstrap: extract trace_id from URL and load ────────────────────────
 
-      const context  = document.getElementById('context').value.trim();
-      const language = document.getElementById('language').value;
-
-      setLoading(true);
+    (async function init() {
+      const match = location.pathname.match(/\/run\/([0-9a-f-]+)/i);
+      if (!match) {
+        showError('URL inválida: no se encontró un trace_id.');
+        return;
+      }
+      currentTraceId = match[1];
 
       try {
-        const resp = await fetch('/contextualize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ claim, context: context || undefined, language }),
-        });
+        const resp = await fetch(`/runs/${currentTraceId}`);
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || JSON.stringify(data));
         renderResults(data);
       } catch (err) {
-        show('error');
-        document.getElementById('error').textContent = 'Error: ' + err.message;
-      } finally {
-        setLoading(false);
+        showError('Error al cargar la contextualización: ' + err.message);
       }
+    })();
+
+    function showError(msg) {
+      hide('loading');
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      show('error');
     }
 
+    // ── renderResults ───────────────────────────
+
     function renderResults(data) {
-      currentTraceId = data.trace_id || null;
+      hide('loading');
       hide('error');
 
-      // Reset Datawrapper tab to idle state
+      // Subtitle
+      document.getElementById('claimTitle').textContent = data.claim || '';
+
+      // Meta line (date + duration)
+      const parts = [];
+      if (data.created_at) {
+        parts.push(new Date(data.created_at).toLocaleString('es', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        }));
+      }
+      if (data.duration_ms) {
+        parts.push(data.duration_ms < 1000 ? `${data.duration_ms}ms` : `${(data.duration_ms / 1000).toFixed(1)}s`);
+      }
+      document.getElementById('metaLine').textContent = parts.join(' · ');
+
+      // Reset Datawrapper tab
       show('dwIdle'); hide('dwLoading'); hide('dwError'); hide('dwResult');
+
+      // Pre-populate Datawrapper if already generated
+      if (data.datawrapper) {
+        hide('dwIdle');
+        const embedDiv = document.getElementById('dwEmbed');
+        embedDiv.innerHTML = data.datawrapper.embed_code ||
+          `<iframe src="${data.datawrapper.chart_url}" width="100%" height="400" frameborder="0" scrolling="no"></iframe>`;
+        document.getElementById('dwLink').href = data.datawrapper.chart_url;
+        show('dwResult');
+      }
+
       switchTab('vega');
 
-      // ── Status badge ────────────────────────────────────────────────────────
+      // Status badge
       const badge = document.getElementById('statusBadge');
       if (data.is_verifiable) {
         badge.textContent = 'Verificable';
@@ -242,11 +294,11 @@
         badge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700';
       }
 
-      // ── Agent analysis (final_text) ─────────────────────────────────────────
+      // Agent analysis
       document.getElementById('finalText').innerHTML =
         marked.parse(data.final_text || '');
 
-      // ── Dataset metadata ────────────────────────────────────────────────────
+      // Dataset metadata
       if (data.is_verifiable && data.indicator_code) {
         setText('metaIndicatorName', data.indicator_name || data.indicator_code);
 
@@ -289,7 +341,7 @@
         hide('metadataSection');
       }
 
-      // ── Chart ────────────────────────────────────────────────────────────────
+      // Chart
       const chartDiv = document.getElementById('vegaChart');
       chartDiv.innerHTML = '';
       if (data.chart_spec) {
@@ -313,21 +365,104 @@
         hide('chartSection');
       }
 
-      // ── Debug + raw JSON ─────────────────────────────────────────────────────
+      // Debug + raw JSON
       renderDebugPanel(data);
       document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
 
+      // Correction banner (when viewing a correction)
+      if (data.parent_trace_id) {
+        rootTraceId = data.parent_trace_id;
+        document.getElementById('correctionInstructionText').textContent = data.correction_instruction || '';
+        document.getElementById('correctionParentLink').href = `/run/${data.parent_trace_id}`;
+        show('correctionBanner');
+      } else {
+        rootTraceId = currentTraceId;
+        hide('correctionBanner');
+      }
+
+      // Corrections history (on root runs)
+      const corrections = data.corrections || [];
+      if (corrections.length) {
+        const list = document.getElementById('correctionsList');
+        list.innerHTML = '';
+        for (const c of corrections) {
+          const item = document.createElement('a');
+          item.href = `/run/${c.trace_id}`;
+          const isActive = c.trace_id === currentTraceId;
+          item.className = `flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${isActive ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50 border border-transparent'}`;
+          item.innerHTML = `
+            <svg class="w-4 h-4 text-gray-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            <div class="flex-1 min-w-0">
+              <div class="text-gray-700 truncate">${escapeHtml(c.correction_instruction || '—')}</div>
+              <div class="text-xs text-gray-400 mt-0.5">${fmtDate(c.created_at)}</div>
+            </div>
+            ${isActive ? '<span class="shrink-0 text-xs font-semibold text-blue-600">Actual</span>' : ''}
+          `;
+          list.appendChild(item);
+        }
+        show('correctionsHistory');
+      } else {
+        hide('correctionsHistory');
+      }
+
+      // Show data correction form only for verifiable runs
+      if (data.is_verifiable) show('dataCorrectionForm');
+      else hide('dataCorrectionForm');
+
       show('results');
-      document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('es', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    async function submitCorrection(type, inputId, errorId, loadingId, btnId) {
+      const instruction = document.getElementById(inputId).value.trim();
+      if (!instruction) {
+        document.getElementById(errorId).textContent = 'Escribí una instrucción antes de enviar.';
+        show(errorId);
+        return;
+      }
+      hide(errorId);
+
+      const targetId = rootTraceId || currentTraceId;
+      const url = `/runs/${targetId}/corrections/${type}`;
+
+      document.getElementById(btnId).disabled = true;
+      show(loadingId);
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instruction }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || JSON.stringify(data));
+        window.location.href = `/run/${data.trace_id}`;
+      } catch (err) {
+        hide(loadingId);
+        document.getElementById(btnId).disabled = false;
+        document.getElementById(errorId).textContent = 'Error: ' + err.message;
+        show(errorId);
+      }
+    }
+
+    function submitDataCorrection() {
+      submitCorrection('data', 'dataCorrectionInstruction', 'dataCorrectionError', 'dataCorrectionLoading', 'dataCorrectionBtn');
+    }
+
+    function submitChartCorrection() {
+      submitCorrection('chart', 'chartCorrectionInstruction', 'chartCorrectionError', 'chartCorrectionLoading', 'chartCorrectionBtn');
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
-
-    function setLoading(on) {
-      document.getElementById('submitBtn').disabled = on;
-      on ? show('loading') : hide('loading');
-      if (on) { hide('results'); hide('error'); }
-    }
 
     function show(id) { document.getElementById(id).classList.remove('hidden'); }
     function hide(id) { document.getElementById(id).classList.add('hidden'); }
@@ -344,10 +479,6 @@
         hide(rowId);
       }
     }
-
-    document.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runContextualize();
-    });
 
     // ── Debug panel ──────────────────────────────────────────────────────────
 
@@ -554,7 +685,6 @@
         return div;
       }
 
-      // Header strip
       const header = document.createElement('div');
       header.className = 'text-xs text-gray-400 mb-2 flex flex-wrap gap-x-4';
       if (parsed.indicator) header.innerHTML += `<span><b class="text-gray-600">${escapeHtml(parsed.indicator)}</b></span>`;
