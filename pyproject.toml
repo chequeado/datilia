@@ -15,6 +15,7 @@ dependencies = [
     "mcp>=1.0",
     "fastmcp>=0.1",
     "gunicorn>=22.0",
+    "whitenoise>=6.0",
 ]
 
 [dependency-groups]
