@@ -9,13 +9,29 @@
 <body class="bg-gray-50 min-h-screen">
   <div class="max-w-3xl mx-auto py-10 px-4">
 
-    <div class="mb-8 flex items-start justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-gray-900">Historial</h1>
-        <p class="text-sm text-gray-400 mt-1">Contextualizaciones anteriores</p>
+    <!-- Header -->
+    <header class="mb-8">
+      <div class="flex items-center justify-between gap-4">
+        <a href="https://chequeado.com" title="Ir a Chequeado" target="_blank" class="shrink-0">
+          <img src="/static/logo01.png" alt="Chequeado" class="h-7 w-auto" />
+        </a>
+        <nav class="flex items-center gap-2">
+          <a href="/"
+            class="px-4 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">
+            Nueva consulta
+          </a>
+          <a href="/history"
+            class="px-4 py-1.5 rounded-lg bg-[#FF004E] text-white text-sm font-medium hover:bg-[#D6003F] transition-colors">
+            Historial
+          </a>
+        </nav>
       </div>
-      <a href="/" class="text-sm text-blue-500 hover:underline mt-1">← Nueva consulta</a>
-    </div>
+      <div class="mt-5">
+        <h1 class="text-2xl font-bold text-gray-900">Historial</h1>
+        <p class="text-sm text-gray-400 mt-1">Contextualizaciones anteriores.</p>
+        <p class="text-xs text-gray-400 mt-1">Prototipo desarrollado en el marco de la <span class="font-medium">Media Party × World Bank Data360 Global Challenge</span>.</p>
+      </div>
+    </header>
 
     <div id="loading" class="text-center py-12 text-sm text-gray-400">Cargando…</div>
     <div id="error" class="hidden bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4"></div>
@@ -104,7 +120,7 @@
         const hasCorrestions = run.latest_trace_id && run.latest_trace_id !== run.trace_id;
         const card = document.createElement('a');
         card.href = `/run/${run.latest_trace_id || run.trace_id}`;
-        card.className = 'block bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:border-blue-300 hover:shadow transition-all';
+        card.className = 'block bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:border-[#FF004E] hover:shadow transition-all';
         card.innerHTML = `
           <div class="flex items-start justify-between gap-3">
             <p class="text-sm text-gray-800 font-medium leading-snug line-clamp-2 flex-1">${escapeHtml(run.claim)}</p>
