@@ -6,8 +6,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.mcp
-    ports:
-      - "8000:8000"
     env_file: .env
     environment:
       DATA360_API_BASE_URL: https://data360api.worldbank.org

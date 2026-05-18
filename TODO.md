@@ -10,9 +10,12 @@ Dev related ones have "(dev)" tags
 - [X] Cajita de historial
 - [X] Soporte para multitext? Pensar ocmo manejar textos de muchas claims
 - [X] Capacidad para pedir correcciones
+- [ ] Deploy for testing with other people (dev)
 - [ ] Nacho revisa generación de graph
 - [ ] Revise final text (proposed output, including dummy summary)
-- [ ] Deploy for testing with other people (dev)
 - [ ] Build a test set of claims and expected results
 - [ ] Feedback from tests to improve loop
 - [ ] Decide how to open demo...
+- [ ] Boton de ejecutar todos
+- [ ] API docs
+- [ ] Versión solo con local storage para publico?
