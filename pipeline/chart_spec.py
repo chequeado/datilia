@@ -151,6 +151,7 @@ def _tooltips(fields: list[str], y_field: str, val_fmt: str) -> list[dict]:
         tip: dict = {"field": col, "title": _field_label(col)}
         if col == "time_period":
             tip["type"] = "temporal"
+            tip["timeUnit"] = "utcyear"
             tip["format"] = "%Y"
         elif col == y_field:
             tip["type"] = "quantitative"
@@ -161,15 +162,28 @@ def _tooltips(fields: list[str], y_field: str, val_fmt: str) -> list[dict]:
     return tips
 
 
-def _color_enc(color_field: str, highlight: str | None = None) -> dict:
-    """Color encoding: highlight one value in blue, gray out the rest."""
-    if highlight:
+def _color_enc(color_field: str, highlight: list[str] | None = None, all_values: list[str] | None = None) -> dict:
+    """Color encoding: field-based so Vega-Lite always generates a legend.
+
+    With highlight: highlighted values get distinct palette colors, rest gray.
+    Legend is filtered to show only highlighted entries.
+    Without highlight: standard categorical palette, full legend.
+    """
+    if highlight and all_values:
+        highlight_set = {h: i for i, h in enumerate(highlight)}
+        domain = all_values
+        range_ = [CAT_COLORS[highlight_set[v] % len(CAT_COLORS)] if v in highlight_set else _GRID for v in all_values]
         return {
-            "condition": {
-                "test": f"datum['{color_field}'] === '{highlight}'",
-                "value": CAT_COLORS[0],
+            "field": color_field,
+            "type": "nominal",
+            "scale": {"domain": domain, "range": range_},
+            "legend": {
+                "values": highlight,
+                "orient": "top",
+                "direction": "horizontal",
+                "labelLimit": 120,
+                "columns": 4,
             },
-            "value": _GRID,
         }
     if color_field == "sex":
         domain = list(_GENDER_COLORS.keys())
@@ -224,6 +238,11 @@ def _temporal_axis() -> dict:
     }
 
 
+def _temporal_enc(field: str) -> dict:
+    """Temporal X encoding that avoids UTC-offset year shift."""
+    return {"field": field, "type": "temporal", "timeUnit": "utcyear", "axis": _temporal_axis()}
+
+
 def _max_abs(records: list[dict], y_field: str) -> float | None:
     vals = [r[y_field] for r in records if isinstance(r.get(y_field), (int, float))]
     return max(abs(v) for v in vals) if vals else None
@@ -247,6 +266,8 @@ def build_topk_bar_spec(
     tt_fmt = _tt_format(_max_abs(rows, y_field), unit)
     tooltip_fields = list(dict.fromkeys([x_field, "time_period", y_field]))
 
+    cf = color_field or x_field
+    all_values = list(dict.fromkeys(r.get(cf) for r in rows if r.get(cf)))
     return {
         "$schema": _schema(),
         "title": title,
@@ -260,7 +281,7 @@ def build_topk_bar_spec(
                 "axis": _value_axis(unit),
                 "scale": {"zero": True},
             },
-            "color": _color_enc(color_field or x_field, highlight),
+            "color": _color_enc(cf, highlight, all_values),
             "tooltip": _tooltips(tooltip_fields, y_field, tt_fmt),
         },
         "width": 500,
@@ -294,15 +315,19 @@ def build_topk_others_spec(
     order = [r[x_field] for r in display_rows]
     tooltip_fields = list(dict.fromkeys([x_field, "time_period", y_field]))
 
+    all_values = [r[x_field] for r in display_rows if r.get(x_field)]
     if highlight:
-        color_encoding: dict = {
-            "condition": {"test": f"datum['{x_field}'] === '{highlight}'", "value": CAT_COLORS[0]},
-            "value": _GRID,
-        }
+        color_encoding: dict = _color_enc(x_field, highlight, all_values)
     else:
+        otros_idx = next((i for i, v in enumerate(all_values) if v == "Otros (promedio)"), None)
+        range_ = [CAT_COLORS[0]] * len(all_values)
+        if otros_idx is not None:
+            range_[otros_idx] = _TEXT_SUBTLE
         color_encoding = {
-            "condition": {"test": f"datum['{x_field}'] === 'Otros (promedio)'", "value": _TEXT_SUBTLE},
-            "value": CAT_COLORS[0],
+            "field": x_field,
+            "type": "nominal",
+            "scale": {"domain": all_values, "range": range_},
+            "legend": None,
         }
 
     return {
@@ -348,7 +373,7 @@ def build_line_spec(
         mark["point"] = {"filled": True, "size": 56}
 
     encoding: dict = {
-        "x": {"field": x_field, "type": "temporal", "axis": _temporal_axis()},
+        "x": _temporal_enc(x_field),
         "y": {
             "field": y_field,
             "type": "quantitative",
@@ -358,7 +383,9 @@ def build_line_spec(
         "tooltip": _tooltips(tooltip_fields, y_field, tt_fmt),
     }
     if color_field:
-        encoding["color"] = _color_enc(color_field, highlight)
+        all_values = list(dict.fromkeys(r.get(color_field) for r in records if r.get(color_field)))
+        encoding["color"] = _color_enc(color_field, highlight, all_values)
+
 
     return {
         "$schema": _schema(),
@@ -385,6 +412,8 @@ def build_cross_sectional_spec(
     rows = sorted(records, key=lambda r: r.get(y_field, 0), reverse=True)
     tt_fmt = _tt_format(_max_abs(rows, y_field), unit)
     tooltip_fields = list(dict.fromkeys([x_field, "time_period", y_field]))
+    cf = color_field or x_field
+    all_values = list(dict.fromkeys(r.get(cf) for r in rows if r.get(cf)))
 
     return {
         "$schema": _schema(),
@@ -399,7 +428,7 @@ def build_cross_sectional_spec(
                 "axis": _value_axis(unit),
                 "scale": {"zero": True},
             },
-            "color": _color_enc(color_field or x_field, highlight),
+            "color": _color_enc(cf, highlight, all_values),
             "tooltip": _tooltips(tooltip_fields, y_field, tt_fmt),
         },
         "width": 500,
@@ -421,6 +450,8 @@ def build_distribution_spec(
     rows = sorted(records, key=lambda r: r.get(y_field, 0), reverse=True)
     tt_fmt = _tt_format(_max_abs(rows, y_field), unit)
     tooltip_fields = list(dict.fromkeys([x_field, "time_period", y_field]))
+    cf = color_field or x_field
+    all_values = list(dict.fromkeys(r.get(cf) for r in rows if r.get(cf)))
 
     layers: list[dict] = [
         {
@@ -437,22 +468,23 @@ def build_distribution_spec(
                     "sort": "-x",
                     "axis": _category_axis(),
                 },
-                "color": _color_enc(color_field or x_field, highlight),
+                "color": _color_enc(cf, highlight, all_values),
                 "tooltip": _tooltips(tooltip_fields, y_field, tt_fmt),
             },
         }
     ]
 
     if highlight:
-        matched = [r for r in records if r.get(x_field) == highlight]
-        if matched:
-            layers.append({
-                "mark": {"type": "rule", "color": CAT_COLORS[1], "strokeWidth": 2, "strokeDash": [5, 3]},
-                "encoding": {
-                    "x": {"datum": matched[0][y_field], "type": "quantitative"},
-                    "tooltip": [{"datum": highlight, "type": "nominal", "title": _field_label(x_field)}],
-                },
-            })
+        for i, h in enumerate(highlight):
+            matched = [r for r in records if r.get(x_field) == h]
+            if matched:
+                layers.append({
+                    "mark": {"type": "rule", "color": CAT_COLORS[i % len(CAT_COLORS)], "strokeWidth": 2, "strokeDash": [5, 3]},
+                    "encoding": {
+                        "x": {"datum": matched[0][y_field], "type": "quantitative"},
+                        "tooltip": [{"datum": h, "type": "nominal", "title": _field_label(x_field)}],
+                    },
+                })
 
     return {
         "$schema": _schema(),
@@ -523,7 +555,7 @@ def build_small_multiples_spec(
     inner: dict = {
         "mark": {"type": "line", "strokeWidth": 2, "point": {"filled": True, "size": 40}},
         "encoding": {
-            "x": {"field": x_field, "type": "temporal", "axis": _temporal_axis()},
+            "x": _temporal_enc(x_field),
             "y": {
                 "field": y_field,
                 "type": "quantitative",
@@ -534,7 +566,8 @@ def build_small_multiples_spec(
         },
     }
     if color_field and color_field != facet_field:
-        inner["encoding"]["color"] = _color_enc(color_field, highlight)
+        all_values = list(dict.fromkeys(r.get(color_field) for r in records if r.get(color_field)))
+        inner["encoding"]["color"] = _color_enc(color_field, highlight, all_values)
 
     return {
         "$schema": _schema(),
@@ -575,12 +608,7 @@ def build_stacked_bar_spec(
         "data": {"values": records},
         "mark": {"type": "bar"},
         "encoding": {
-            "x": {
-                "field": x_field,
-                "type": "temporal",
-                "timeUnit": "year",
-                "axis": _temporal_axis(),
-            },
+            "x": _temporal_enc(x_field),
             "y": {
                 "field": y_field,
                 "type": "quantitative",

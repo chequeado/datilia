@@ -77,7 +77,7 @@ class ChartSelection(models.Model):
     y_field     = models.CharField(max_length=100)
     color_field = models.CharField(max_length=100, blank=True, null=True)
     facet_field = models.CharField(max_length=100, blank=True, null=True)
-    highlight   = models.CharField(max_length=20, blank=True, null=True)
+    highlight   = models.JSONField(null=True, blank=True)
     top_n       = models.SmallIntegerField(null=True)
     chart_spec  = models.JSONField(null=True)
 

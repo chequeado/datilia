@@ -30,6 +30,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _DATA_TOOLS = {"data360_get_data", "data360_rank_countries", "data360_compare_countries"}
+_METADATA_TOOLS = {"data360_get_metadata"}
 
 # API values that mean "all / not disaggregated / not applicable" — skip these
 _TRIVIAL = {"_T", "_Z", ""}
@@ -64,6 +65,7 @@ def extract(tool_trace: list[dict]) -> dict[str, Any] | None:
     indicator_code: str | None = None
     indicator_name: str | None = None
     unit: str | None = None
+    limitation: str | None = None
     records: list[dict] = []
     seen: set[tuple] = set()
 
@@ -109,7 +111,19 @@ def extract(tool_trace: list[dict]) -> dict[str, Any] | None:
         logger.info("[data_context] no records found in trace")
         return None
 
-    # ── Pass 2: enrich indicator metadata from search results ─────────────────
+    # ── Pass 2: extract limitation from metadata tool calls ───────────────────
+
+    for entry in tool_trace:
+        if entry.get("tool") not in _METADATA_TOOLS:
+            continue
+        payload = _parse_result(entry.get("result"))
+        if not payload:
+            continue
+        meta = payload.get("indicator_metadata") or {}
+        if isinstance(meta, dict):
+            limitation = limitation or meta.get("limitation") or None
+
+    # ── Pass 3: enrich indicator metadata from search results ─────────────────
 
     database_id: str | None = None
     database_name: str | None = None
@@ -169,6 +183,7 @@ def extract(tool_trace: list[dict]) -> dict[str, Any] | None:
         "definition": definition or "",
         "periodicity": periodicity or "",
         "unit": unit or "",
+        "limitation": limitation or "",
         "source_url": (
             f"https://data360.worldbank.org/en/indicator/{indicator_code}"
             if indicator_code

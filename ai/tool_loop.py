@@ -27,13 +27,16 @@ async def _run_async(
     if language != "es":
         user_message += f"\n\nPlease respond in: {language}"
 
+    system_prompt = build_system_prompt()
+    logger.debug("[tool_loop] user_message=\n%s", user_message)
+
     async with MCPServerStreamableHttp(
         params={"url": settings.MCP_SERVER_URL},
         cache_tools_list=True,
     ) as mcp_server:
         agent = Agent(
             name="data360-contextualizer",
-            instructions=build_system_prompt(),
+            instructions=system_prompt,
             mcp_servers=[mcp_server],
             model=llm_client.MODEL,
             model_settings=ModelSettings(temperature=llm_client.TEMPERATURE),

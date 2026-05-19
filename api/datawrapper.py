@@ -130,6 +130,10 @@ def create_and_publish(data_ctx, chart_selection) -> dict:
     csv_data = _prepare_csv(data_ctx, chart_selection)
 
     with httpx.Client(base_url=_DW_BASE, headers=_headers(), timeout=30) as client:
+        year_parts = [str(y) for y in [data_ctx.start_year, data_ctx.end_year] if y]
+        subtitle_parts = [("–".join(year_parts) if year_parts else ""), data_ctx.unit or ""]
+        subtitle = " · ".join(p for p in subtitle_parts if p)
+
         resp = client.post("/v3/charts", json={
             "type": dw_type,
             "title": data_ctx.indicator_name,
@@ -138,6 +142,7 @@ def create_and_publish(data_ctx, chart_selection) -> dict:
                     "source-name": data_ctx.database_name,
                     "source-url": data_ctx.source_url or "",
                     "intro": data_ctx.definition[:300] if data_ctx.definition else "",
+                    "byline": subtitle,
                 },
             },
         })

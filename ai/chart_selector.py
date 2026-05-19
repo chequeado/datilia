@@ -18,19 +18,19 @@ import ai.llm_client as llm_client
 logger = logging.getLogger(__name__)
 
 _INSTRUCTIONS = """\
-You choose the best Vega-Lite chart type for a journalistic data visualization.
+You choose the best chart type for a journalistic data visualization.
 You will receive:
 - The original claim the journalist is fact-checking
-- The final text produced by the research agent (the actual finding)
+- The finding (agent's conclusion) — the actual text that will accompany the chart
 - A description of the dataset's columns and cardinalities
 
-Your goal is to pick the strategy that best communicates the story in the claim and finding.
+Your goal is to pick the strategy that best communicates the story in the claim and finding, and also tweak axis values to show the relevant data to the finding or overall point of the final text.
 You must assign each visual encoding channel to a real column name from the data.
 
 Output fields:
 - strategy, x_field, y_field, color_field, facet_field, highlight, top_n: chart type and encoding (see below)
-- title: override the chart title (e.g. if the user asks to translate it or rewrite it); null to keep the default
-- subtitle: override the chart subtitle (e.g. if the user asks to translate it or rewrite it); null to keep the default
+- title: chart title in the claim's language (Spanish by default). Indicator name.
+- subtitle: time range and unit, adapted to the claim language.
 
 Available strategies:
 - "top_k"               Horizontal bars, top-N areas by value — ranking story, single year
@@ -48,43 +48,51 @@ Column assignment rules:
 - y_field: always "value"
 - color_field: field for color/series differentiation (ref_area, sex, age, urbanisation, etc.) — null if single series
 - facet_field: only for small_multiples — field used to split into panels — null otherwise
-- highlight: ISO-3 code of a specific area to visually emphasize if the claim focuses on one country — null otherwise
+- highlight: list of ISO-3 codes to visually emphasize (each gets a distinct color, everything else grayed out) — use when the claim or finding focuses on one or a few specific countries — null otherwise
 - top_n: number of bars for top_k / top_k_others, chosen so the highlighted area is always included — null for all other strategies
 
-Decision process — follow in order:
+Decision process:
 
-STEP 1 — Read the claim and final_text for story cues. These signals should drive your choice:
-- Ranking language ("biggest", "leads", "highest", "top N", "mayor", "primero") → prefer top_k or top_k_others
-- One country vs. the world or a region ("Argentina compared to", "how does X rank", "Argentina frente a") → prefer top_k_others, set highlight
-- Spread/distribution language ("varies widely", "gap", "unequal", "range", "dispersión") → prefer distribution
-- Change-over-time language ("rose", "fell", "grew", "since", "trend", "over the last N years", "creció", "cayó") → prefer line or line_dots
-- Composition/breakdown language ("share of", "driven by", "breakdown", "proportion", "participación") → prefer stacked_bar (disagg over time) or breakdown_comparison/small_multiples (disagg across areas)
-- If the claim names a specific country → set highlight to its ISO-3 code
+Read the claim and the finding together to understand the editorial intent — what a reader needs to see to evaluate the claim. Then check what the data can actually support. Choose the chart that best serves the intent within the data's constraints.
 
-STEP 2 — Validate against data shape and resolve the final choice:
+EDITORIAL INTENT → NATURAL CHART (what you want to show):
 
-A) Disaggregation present (sex/age/urbanisation column with >1 value):
-   - time_period has >1 value → "small_multiples" (x_field = time_period, color_field = disagg dim, facet_field = ref_area if ≤6 areas, otherwise facet_field = disagg dim, color_field = ref_area)
-   - time_period has 1 value AND ≤4 areas → "breakdown_comparison" (x_field = ref_area, color_field = disagg dim)
-   - time_period has 1 value AND >4 areas → "small_multiples"
-   - Exception: composition cue present AND disagg dim represents parts-of-a-whole (age groups, causes) AND ≤5 ref_areas → "stacked_bar" (x_field = time_period, color_field = disagg dim)
+- Subject's position among peers (ranking, who is first/last) → top_k_others with highlight, or top_k
+- Direct comparison between a few named entities → cross_sectional (≤8) or top_k_others with highlight (>8)
+- Trajectory of one or few entities over time → line_dots (sparse) or line (dense/many series)
+- Where subject falls within a large group's spread → distribution (spread is the story) or top_k_others (rank is the story)
+- Which entity changed the most across a period → bars of computed variation; if only raw multi-year data is available, rank by latest year as best approximation
+- Composition (parts of a whole, breakdown by sex/age/category) → stacked_bar (over time) or breakdown_comparison (single year, few areas)
+- Long-run historical arc of a single entity → line or line_dots for that entity alone
 
-B) No disaggregation, time series (time_period has >1 value):
-   - ≤4 areas AND ≤15 years → "line_dots"
-   - otherwise → "line"
+DATA CONSTRAINTS → WHAT THE DATA CAN SUPPORT:
 
-C) No disaggregation, cross-sectional (time_period has 1 value):
-   - ≤8 areas → "cross_sectional"
-   - >8 areas: use claim cues to choose —
-     - ranking cue → "top_k" (or "top_k_others" if highlight is set)
-     - distribution/spread cue → "distribution"
-     - no strong cue → "top_k"
+- Disaggregation present (sex/age/urbanisation with >1 value):
+  - time_period >1 value → small_multiples
+  - time_period = 1 value, ≤4 areas → breakdown_comparison
+  - time_period = 1 value, >4 areas → small_multiples
+  - Exception: composition intent + disagg dim is parts-of-a-whole + ≤5 ref_areas → stacked_bar
 
-top_k vs top_k_others: use top_k_others when highlight is set (so the highlighted area always appears even if outside top-N); use top_k when no specific area is emphasized. Set top_n so the highlighted area is included.
+- No disaggregation, multiple time periods:
+  - ≤4 areas AND ≤15 years → line_dots
+  - otherwise → line
 
-Threshold guidance: if the data sits near a threshold (e.g. 7 or 9 areas when threshold is 8), prefer the simpler chart.
+- No disaggregation, single time period:
+  - ≤8 areas → cross_sectional
+  - >8 areas → top_k or top_k_others
 
-Sort order: sort bars descending by value for bar charts, unless the claim implies a natural order.
+RESOLVING INTENT VS. CONSTRAINTS:
+
+When the editorial intent and data shape point to different charts, find the closest match — the chart that serves the story as well as the data allows. For example: a ranking story with multi-year data should still use a bar chart at the latest year, not default to a line chart just because multiple years exist.
+
+top_k vs top_k_others: use top_k_others when a specific subject is highlighted; top_k otherwise. Set top_n so the highlighted area is always included.
+
+COMPARABILITY RULE: If a Limitation note states the data should not be used for cross-country comparison, OR if the indicator name or definition implies each country uses its own national methodology (making absolute values inherently non-comparable), avoid cross_sectional/top_k/top_k_others/distribution/breakdown_comparison. Use line or line_dots with color separation instead, showing each country's own trend.
+
+Threshold guidance: near a threshold (e.g. 7 or 9 areas when threshold is 8), prefer the simpler chart.
+
+If the claim or finding focuses on specific countries, set highlight to a list of their ISO-3 codes (usually 1–3 items).
+Sort bars descending by value unless the claim implies a natural order.
 
 Return only valid JSON matching the schema. No explanation.\
 """
@@ -106,7 +114,7 @@ class ChartParams(BaseModel):
     y_field: str
     color_field: str | None = None
     facet_field: str | None = None
-    highlight: str | None = None
+    highlight: list[str] | None = None
     top_n: int | None = None
     title: str | None = None
     subtitle: str | None = None
@@ -156,9 +164,11 @@ async def select_async(
     *,
     final_text: str = "",
     correction: str | None = None,
+    limitation: str | None = None,
 ) -> ChartParams:
     indicator_name = data_context.get("indicator_name", "")
     unit = data_context.get("unit", "")
+    limitation = limitation or data_context.get("limitation") or None
     data_description = _describe_data(data_context)
 
     time_range = data_context.get("time_range", {})
@@ -173,6 +183,7 @@ async def select_async(
     unit_note = f" (unit: {unit})" if unit else ""
     finding_block = f"Finding (agent's conclusion):\n{final_text}\n\n" if final_text else ""
     correction_block = f"User correction request:\n{correction}\n\n" if correction else ""
+    limitation_block = f"Limitation: {limitation}\n\n" if limitation else ""
     current_title_block = (
         f"Current chart title: {indicator_name}\nCurrent chart subtitle: {current_subtitle}\n\n"
         if correction else ""
@@ -181,6 +192,7 @@ async def select_async(
         f"Claim: {claim}\n\n"
         f"{finding_block}"
         f"{correction_block}"
+        f"{limitation_block}"
         f"{current_title_block}"
         f"Indicator: {indicator_name}{unit_note}\n\n"
         f"Dataset columns:\n{data_description}"

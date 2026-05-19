@@ -11,7 +11,7 @@ services:
       DATA360_API_BASE_URL: https://data360api.worldbank.org
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8000/openapi.json"]
-      interval: 15s
+      interval: 200s
       timeout: 10s
       retries: 8
       start_period: 90s

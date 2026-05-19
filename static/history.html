@@ -21,7 +21,7 @@
             Nueva consulta
           </a>
           <a href="/history"
-            class="px-4 py-1.5 rounded-lg bg-[#FF004E] text-white text-sm font-medium hover:bg-[#D6003F] transition-colors">
+            class="px-4 py-1.5 rounded-lg bg-[#354052] text-white text-sm font-medium hover:bg-[#D6003F] transition-colors">
             Historial
           </a>
         </nav>
@@ -120,7 +120,7 @@
         const hasCorrestions = run.latest_trace_id && run.latest_trace_id !== run.trace_id;
         const card = document.createElement('a');
         card.href = `/run/${run.latest_trace_id || run.trace_id}`;
-        card.className = 'block bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:border-[#FF004E] hover:shadow transition-all';
+        card.className = 'block bg-white rounded-xl border border-gray-200 shadow-sm p-4 hover:border-[#354052] hover:shadow transition-all';
         card.innerHTML = `
           <div class="flex items-start justify-between gap-3">
             <p class="text-sm text-gray-800 font-medium leading-snug line-clamp-2 flex-1">${escapeHtml(run.claim)}</p>

@@ -28,6 +28,7 @@ A claim is worth extracting if it:
 - Refers to economic, social, demographic, health, education, or environmental indicators
 - Can be compared against historical data or cross-country benchmarks
 - Is about a country, region, or group of countries
+- Questions or general assertions when that's the only thing present, meaning a user is querying information about a certain indicator or trend without making a specific claim. In this case, extract the question or assertion as a claim.
 
 Do NOT extract:
 - Pure opinions or value judgments with no measurable component
