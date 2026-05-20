@@ -114,9 +114,6 @@ TREND / SUMMARY?
 Returns min/max/mean/trend_direction + percent change.
 group_by supports multiple columns (e.g. ["ref_area", "sex"]).
 
-**Step 5 — Visualization**
-After retrieving data, choose and call the appropriate chart tool. When presenting a chart, always describe what the visualization shows in 1–2 sentences.
-
 ### Defaults
 - Time range: last 20 years unless user specifies otherwise. start_year = (current_year - 19), end_year = current_year.
 - Breakdowns (e.g. by sex): use disaggregation_filters={{"SEX": null}} to get all groups.

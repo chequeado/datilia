@@ -169,7 +169,7 @@ def _color_enc(color_field: str, highlight: list[str] | None = None, all_values:
     Legend is filtered to show only highlighted entries.
     Without highlight: standard categorical palette, full legend.
     """
-    if highlight and all_values:
+    if highlight and all_values and any(h in set(all_values) for h in highlight):
         highlight_set = {h: i for i, h in enumerate(highlight)}
         domain = all_values
         range_ = [CAT_COLORS[highlight_set[v] % len(CAT_COLORS)] if v in highlight_set else _GRID for v in all_values]
@@ -601,6 +601,7 @@ def build_stacked_bar_spec(
     """Stacked bars: time on X, color = breakdown field, stacked values."""
     tt_fmt = _tt_format(_max_abs(records, y_field), unit)
     tooltip_fields = list(dict.fromkeys([color_field, x_field, y_field]))
+    all_values = list(dict.fromkeys(r.get(color_field) for r in records if r.get(color_field)))
 
     return {
         "$schema": _schema(),
@@ -615,7 +616,7 @@ def build_stacked_bar_spec(
                 "axis": _value_axis(unit),
                 "stack": True,
             },
-            "color": _color_enc(color_field, highlight),
+            "color": _color_enc(color_field, highlight, all_values),
             "tooltip": _tooltips(tooltip_fields, y_field, tt_fmt),
         },
         "width": 500,

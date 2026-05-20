@@ -19,4 +19,4 @@ Dev related ones have "(dev)" tags
 - [ ] Boton de ejecutar todos
 - [ ] API docs
 - [ ] Versión solo con local storage para publico?
-- [ ] 
+- [ ] soporte multiples gráficos
