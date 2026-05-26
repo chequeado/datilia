@@ -1,0 +1,610 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Datilia API",
+    "version": "1.0.0",
+    "description": "## What is Datilia?\n\nDatilia is a prototype tool developed by [Chequeado](https://chequeado.com) for the **Media Party × World Bank Data360 Global Challenge**. It takes journalistic text, automatically extracts verifiable statistical claims, cross-references them against the [World Bank Data360](https://data360.worldbank.org) database, and returns structured data context with a narrative and a Vega-Lite chart.\n\n**Live demo:** [datilia.chequeado.com](https://datilia.chequeado.com) — user: `data360` / password: `data360challenge`\n",
+    "contact": {
+      "name": "Chequeado",
+      "url": "https://chequeado.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://github.com/chequeado/datilia/blob/master/LICENSE"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8090",
+      "description": "Local Docker (default)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Contextualization",
+      "description": "Core claim analysis and data contextualization pipeline"
+    },
+    {
+      "name": "Runs",
+      "description": "Retrieve and browse persisted contextualization runs"
+    },
+    {
+      "name": "Corrections",
+      "description": "Iterative correction of data or chart for an existing run"
+    },
+    {
+      "name": "Export",
+      "description": "Publish charts to Datawrapper"
+    }
+  ],
+  "paths": {
+    "/extract-claims": {
+      "post": {
+        "tags": ["Contextualization"],
+        "summary": "Extract verifiable claims from text",
+        "description": "Analyzes a journalistic text and returns a list of quantitative, verifiable claims found in it. Claims that are opinions, anecdotes, or unverifiable statements are excluded.",
+        "operationId": "extractClaims",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ExtractClaimsRequest" },
+              "example": {
+                "text": "La tasa de pobreza en Argentina alcanzó el 40,1% en 2023. El presidente afirmó que esto demuestra el fracaso de las políticas anteriores. La inflación superó el 211% anual."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Claims extracted successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ExtractClaimsResponse" },
+                "example": {
+                  "status": "ok",
+                  "claims": [
+                    {
+                      "claim": "La tasa de pobreza en Argentina alcanzó el 40,1% en 2023",
+                      "rationale": "Quantitative claim with a specific year and percentage; verifiable against official statistics."
+                    },
+                    {
+                      "claim": "La inflación superó el 211% anual",
+                      "rationale": "Specific numerical claim about inflation rate."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/contextualize": {
+      "post": {
+        "tags": ["Contextualization"],
+        "summary": "Contextualize a single claim",
+        "description": "Runs the full Datilia pipeline for a single claim:\n1. An LLM agent searches Data360 via MCP tools (up to 8 tool turns)\n2. Extracted data context is structured and persisted\n3. An LLM selects chart type and parameters\n4. A Vega-Lite chart spec is built\n5. A narrative paragraph is generated\n\nThe result is persisted as a `ContextualizationRun` and is addressable by `trace_id`.",
+        "operationId": "contextualize",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ContextualizeRequest" },
+              "example": {
+                "claim": "Argentina's poverty rate reached 40.1% in 2023",
+                "context": "Paragraph from an article about social policy in Latin America.",
+                "language": "es"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contextualization completed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ContextualizeResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/runs": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "List contextualization runs (disabled in public prototype)",
+        "description": "⚠️ **Disabled in the public prototype.** This endpoint would return a paginated list of all root runs from all users, which is a privacy concern in a shared deployment. The route is commented out in `api/urls.py` and will return 404. Re-enable behind authentication for internal or admin use.",
+        "operationId": "listRuns",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 },
+            "description": "Page number (20 runs per page)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated run list",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RunListResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{trace_id}": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Get run detail",
+        "description": "Returns the detail of a single contextualization run. Accessible only via the run's UUID (effectively unguessable). The `context` field (original article text) and `tool_trace` (internal pipeline steps) are omitted from the public response.",
+        "operationId": "getRunDetail",
+        "parameters": [
+          {
+            "name": "trace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "UUID of the contextualization run"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RunDetailResponse" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/contextualize/{trace_id}/datawrapper": {
+      "post": {
+        "tags": ["Export"],
+        "summary": "Publish chart to Datawrapper",
+        "description": "Creates and publishes a Datawrapper chart from the data and chart parameters of an existing verifiable run. Returns the chart URL and embed code. Idempotent: if a Datawrapper chart already exists for this run, it is returned directly without creating a new one.",
+        "operationId": "publishDatawrapper",
+        "parameters": [
+          {
+            "name": "trace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing Datawrapper chart returned",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DatawrapperChart" }
+              }
+            }
+          },
+          "201": {
+            "description": "New Datawrapper chart created and published",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DatawrapperChart" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": { "$ref": "#/components/responses/BadGateway" }
+        }
+      }
+    },
+    "/runs/{trace_id}/corrections/chart": {
+      "post": {
+        "tags": ["Corrections"],
+        "summary": "Correct chart visualization",
+        "description": "Re-runs only the chart selection and chart building steps (steps 3–4) for an existing verifiable run, keeping the original data context. Use this to change the chart type, encoding fields, or highlighting without re-fetching data from Data360.",
+        "operationId": "correctChart",
+        "parameters": [
+          {
+            "name": "trace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CorrectionRequest" },
+              "example": {
+                "instruction": "Show only the top 10 countries and highlight Argentina in red"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Corrected run created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CorrectionResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/runs/{trace_id}/corrections/data": {
+      "post": {
+        "tags": ["Corrections"],
+        "summary": "Correct data selection",
+        "description": "Re-runs the full pipeline (all 4 steps) for an existing run with an additional correction instruction. The LLM agent will receive the instruction as additional context, allowing it to search for different indicators, apply different filters, or adjust the time range.",
+        "operationId": "correctData",
+        "parameters": [
+          {
+            "name": "trace_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CorrectionRequest" },
+              "example": {
+                "instruction": "Use the income poverty indicator (less than $2.15/day) instead of the national poverty line"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Corrected run created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CorrectionResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ExtractClaimsRequest": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Journalistic text to analyze. Can be a full article or a paragraph.",
+            "minLength": 10
+          }
+        }
+      },
+      "ExtractedClaim": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string",
+            "description": "The extracted claim as it appears in the original text"
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Why this claim is considered verifiable"
+          }
+        }
+      },
+      "ExtractClaimsResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["ok", "error"] },
+          "claims": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ExtractedClaim" }
+          }
+        }
+      },
+      "ContextualizeRequest": {
+        "type": "object",
+        "required": ["claim"],
+        "properties": {
+          "claim": {
+            "type": "string",
+            "description": "The statistical or factual claim to contextualize",
+            "example": "Global CO2 emissions reached a record 37.4 billion tonnes in 2023"
+          },
+          "context": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional surrounding text providing context for the claim (improves indicator matching)"
+          },
+          "language": {
+            "type": "string",
+            "enum": ["es", "en", "pt"],
+            "default": "es",
+            "description": "Language for the narrative output"
+          }
+        }
+      },
+      "DataContext": {
+        "type": "object",
+        "description": "Structured data context extracted from the Data360 API",
+        "properties": {
+          "indicator_code": { "type": "string", "example": "EN_ATM_CO2E_KT" },
+          "indicator_name": { "type": "string", "example": "CO2 emissions (kt)" },
+          "database_id": { "type": "string" },
+          "database_name": { "type": "string", "example": "World Development Indicators" },
+          "definition": { "type": "string" },
+          "periodicity": { "type": "string", "example": "Annual" },
+          "unit": { "type": "string", "example": "kt" },
+          "source_url": { "type": "string", "format": "uri" },
+          "area_codes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["WLD", "CHN", "USA"]
+          },
+          "time_range": {
+            "type": "object",
+            "properties": {
+              "start_year": { "type": "integer" },
+              "end_year": { "type": "integer" }
+            }
+          },
+          "columns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Column names in the records array"
+          }
+        }
+      },
+      "ChartParams": {
+        "type": "object",
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "enum": ["top_k", "top_k_others", "line", "line_dots", "cross_sectional", "distribution", "breakdown_comparison", "small_multiples", "stacked_bar"],
+            "example": "line",
+            "description": "Chart strategy selected by the AI chart selector."
+          },
+          "x_field": { "type": "string", "example": "time_period" },
+          "y_field": { "type": "string", "example": "value" },
+          "color_field": { "type": "string", "nullable": true, "example": "ref_area" },
+          "facet_field": { "type": "string", "nullable": true },
+          "highlight": {
+            "type": "array",
+            "items": { "type": "string" },
+            "nullable": true,
+            "example": ["ARG", "BRA"],
+            "description": "ISO-3 country codes to visually emphasize; everything else is grayed out."
+          },
+          "top_n": { "type": "integer", "nullable": true, "example": 10 }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "properties": {
+          "tool": { "type": "string", "example": "data360_search_indicators" },
+          "arguments": { "type": "object" },
+          "result": {}
+        }
+      },
+      "ContextualizeResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["ok", "error"] },
+          "trace_id": { "type": "string", "format": "uuid" },
+          "is_verifiable": {
+            "type": "boolean",
+            "description": "Whether the claim could be matched to a Data360 indicator"
+          },
+          "final_text": {
+            "type": "string",
+            "description": "Narrative paragraph contextualizing the claim with data"
+          },
+          "indicator_code": { "type": "string" },
+          "indicator_name": { "type": "string" },
+          "database_id": { "type": "string" },
+          "database_name": { "type": "string" },
+          "definition": { "type": "string" },
+          "periodicity": { "type": "string" },
+          "unit": { "type": "string" },
+          "source_url": { "type": "string", "format": "uri" },
+          "area_codes": { "type": "array", "items": { "type": "string" } },
+          "time_range": {
+            "type": "object",
+            "properties": {
+              "start_year": { "type": "integer" },
+              "end_year": { "type": "integer" }
+            }
+          },
+          "chart_spec": {
+            "type": "object",
+            "description": "Vega-Lite chart specification (JSON)"
+          },
+          "chart_params": { "$ref": "#/components/schemas/ChartParams" },
+          "tool_trace": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ToolCall" },
+            "description": "Ordered list of MCP tool calls made by the agent"
+          }
+        }
+      },
+      "RunSummary": {
+        "type": "object",
+        "properties": {
+          "trace_id": { "type": "string", "format": "uuid" },
+          "latest_trace_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "trace_id of the most recent version (may differ if corrections exist)"
+          },
+          "claim": { "type": "string" },
+          "status": { "type": "string", "enum": ["ok", "not_verifiable", "error", "pending"] },
+          "is_verifiable": { "type": "boolean" },
+          "language": { "type": "string", "enum": ["es", "en", "pt"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "duration_ms": { "type": "integer", "nullable": true }
+        }
+      },
+      "RunListResponse": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" },
+          "page": { "type": "integer" },
+          "page_size": { "type": "integer", "example": 20 },
+          "results": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/RunSummary" }
+          }
+        }
+      },
+      "CorrectionSummary": {
+        "type": "object",
+        "properties": {
+          "trace_id": { "type": "string", "format": "uuid" },
+          "correction_instruction": { "type": "string" },
+          "status": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DatawrapperChart": {
+        "type": "object",
+        "properties": {
+          "chart_id": { "type": "string" },
+          "chart_url": { "type": "string", "format": "uri" },
+          "embed_code": { "type": "string", "description": "HTML iframe embed code" },
+          "published_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RunDetailResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ContextualizeResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "claim": { "type": "string" },
+              "context": { "type": "string" },
+              "language": { "type": "string" },
+              "created_at": { "type": "string", "format": "date-time" },
+              "duration_ms": { "type": "integer", "nullable": true },
+              "tool_trace": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/ToolCall" }
+              },
+              "datawrapper": {
+                "allOf": [{ "$ref": "#/components/schemas/DatawrapperChart" }],
+                "nullable": true
+              },
+              "parent_trace_id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Present if this is a correction (not a root run)"
+              },
+              "correction_instruction": {
+                "type": "string",
+                "description": "Present if this is a correction"
+              },
+              "corrections": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/CorrectionSummary" },
+                "description": "Present if this is a root run — list of all corrections"
+              }
+            }
+          }
+        ]
+      },
+      "CorrectionRequest": {
+        "type": "object",
+        "required": ["instruction"],
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "description": "Natural-language instruction describing what to change",
+            "minLength": 3,
+            "example": "Show a bar chart of the top 15 countries instead of a line"
+          }
+        }
+      },
+      "CorrectionResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ContextualizeResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "parent_trace_id": { "type": "string", "format": "uuid" },
+              "correction_instruction": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "ValidationError": {
+        "description": "Request validation failed",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "detail": "Run not found." }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Pipeline or server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": { "type": "string", "enum": ["error"] },
+                "trace_id": { "type": "string", "format": "uuid" },
+                "detail": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "BadGateway": {
+        "description": "Upstream API error (e.g. Datawrapper)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    }
+  }
+}

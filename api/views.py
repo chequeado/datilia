@@ -508,7 +508,8 @@ class RunDetailView(APIView):
             "is_verifiable": run_record.is_verifiable,
             "final_text": run_record.final_text,
             "claim": run_record.claim,
-            "context": run_record.context,
+            # "context" (original article text) omitted — user-submitted content,
+            # not needed by the frontend and shouldn't be re-exposed publicly.
             "language": run_record.language,
             "created_at": run_record.created_at,
             "duration_ms": run_record.duration_ms,
@@ -522,14 +523,8 @@ class RunDetailView(APIView):
         if chart_sel:
             payload.update(_serialize_chart_selection(chart_sel))
 
-        payload["tool_trace"] = [
-            {
-                "tool": tc.tool_name,
-                "arguments": tc.arguments,
-                "result": tc.result,
-            }
-            for tc in run_record.tool_calls.order_by("turn")
-        ]
+        # tool_trace omitted from public response — exposes internal pipeline
+        # details and raw Data360 API results. Re-add for authenticated/admin use.
 
         dw = getattr(run_record, "datawrapper_chart", None)
         if dw:

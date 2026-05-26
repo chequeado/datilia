@@ -3,8 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Contextualización — Chequeado Contextualizer</title>
+  <title>Contextualización — Datilia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: { sans: ['Archivo', 'ui-sans-serif', 'system-ui', 'sans-serif'] } } }
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@6"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
@@ -16,9 +24,13 @@
     <!-- Header -->
     <header class="mb-8">
       <div class="flex items-center justify-between gap-4">
-        <a href="https://chequeado.com" title="Ir a Chequeado" target="_blank" class="shrink-0">
-          <img src="/static/logo01.png" alt="Chequeado" class="h-7 w-auto" />
-        </a>
+        <div class="shrink-0 flex items-center gap-2">
+          <a href="/" title="Datilia" class="text-2xl font-bold text-[#354052] tracking-tight">Datilia</a>
+          <span class="text-xs text-gray-400 font-normal ml-3">por</span>
+          <a href="https://chequeado.com" target="_blank">
+            <img src="/static/logo01.png" alt="Chequeado" class="h-4 w-auto opacity-70" />
+          </a>
+        </div>
         <nav class="flex items-center gap-2">
           <a href="/"
             class="px-4 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">
@@ -28,10 +40,14 @@
             class="px-4 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">
             Historial
           </a>
+          <a href="/docs"
+            class="px-4 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">
+            Docs
+          </a>
         </nav>
       </div>
       <div class="mt-5">
-        <h1 class="text-2xl font-bold text-gray-900">¿Qué dicen los datos?</h1>
+        <h1 class="text-2xl font-bold text-gray-900">Contextualización</h1>
       </div>
     </header>
 

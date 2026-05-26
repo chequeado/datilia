@@ -1,23 +1,35 @@
-# data360-claim-contextualizer
+# Datilia
 
-A Django REST API that contextualizes journalistic claims against World Bank [Data360](https://data360.worldbank.org) data. Given a claim like *"Argentina's poverty rate reached 39% in 2022"*, it searches for relevant indicators via an AI agent, extracts verified data points, and returns a citeable narrative with structured annotations.
+**Datilia** is a prototype tool developed by [Chequeado](https://chequeado.com) for the **Media Party × World Bank Data360 Global Challenge**.
 
-Built by [Chequeado](https://chequeado.com).
+Given a journalistic text, Datilia identifies verifiable statistical claims, searches the [World Bank Data360](https://data360.worldbank.org) database via an AI agent, and returns a narrative paragraph with data context and a Vega-Lite chart.
 
 ---
 
-## How it works
+## Live demo
 
-The `/contextualize` endpoint runs an 8-step pipeline:
+**[datilia.chequeado.com](https://datilia.chequeado.com)**
 
-1. **Tool loop** — an LLM agent searches Data360 via MCP tools (multi-turn)
-2. **Resolver** — a second LLM call extracts a structured `ResolvedQuery` (indicator, countries, time range)
-3. **Early exit** — if the claim is not verifiable (opinion, out of scope, no data), return immediately
-4. **Claim set** — data points are extracted from the agent's tool trace into typed `Claim` objects
-5. **Chart spec** — a Vega-Lite visualization is requested from the Data360 MCP server
-6. **Narrative writer** — a third LLM call produces a 2–4 sentence paragraph with `[[claim_id:value]]` citation tags
-7. **PCN verifier** — tags are parsed and each cited value is matched back to the claim set; bare numbers are flagged
-8. **Response assembly** — everything is combined and returned as structured JSON
+The deployed prototype is password-protected:
+
+| | |
+|---|---|
+| User | `data360` |
+| Password | `data360challenge` |
+
+---
+
+## What we built
+
+This prototype was developed end-to-end for this challenge. Beyond wiring up the Data360 MCP server, the work included:
+
+- **Claim extractor** — an LLM-based pre-screen that reads a journalistic text and identifies which statements are quantitative, country-level, and plausibly verifiable against international statistical databases. Opinions, qualitative assertions, and non-statistical claims are filtered out before any data query runs.
+
+- **Editorial agent prompt** — a custom system prompt that shapes how the agent uses the Data360 tools. It enforces Chequeado's editorial standard, including things like mandatory comparability checks before cross-country comparisons and a strict scope rule that limits the agent to the submitted claim. 
+
+- **AI chart type selector** — a second LLM call that takes the retrieved dataset and the agent's finding and picks a visualization strategy. Nine strategies are available based on our criteria, and the selector chooses based on both data shape and the editorial story in the claim, then assigns every encoding channel (axes, color, facet, highlight). This provides better graphs tailored to the editorial intent.
+
+- **Iterative correction system** — every result can be refined by natural-language instruction without starting over. Chart corrections re-run only visualization (no new data fetch); data corrections re-run the full agent with the instruction added as context.
 
 ---
 
@@ -28,6 +40,7 @@ The `/contextualize` endpoint runs an 8-step pipeline:
 | API | Django 4.2 + Django REST Framework |
 | AI / agents | OpenAI Agents SDK |
 | Data tools | World Bank Data360 via MCP (Model Context Protocol) |
+| Visualization | Vega-Lite DataWrapper |
 | Config | Pydantic Settings |
 | Server | Gunicorn (app) + Uvicorn (MCP) |
 | Containers | Docker + docker-compose |
@@ -40,12 +53,12 @@ The `/contextualize` endpoint runs an 8-step pipeline:
 
 ```bash
 cp .env.example .env          # fill in OPENAI_API_KEY and DJANGO_SECRET_KEY
-docker-compose up
+docker compose up
 ```
 
-- App: `http://localhost:8080`
+- App: `http://localhost:8090`
 - MCP server: `http://localhost:8000/mcp`
-- Sandbox UI: `http://localhost:8080/`
+- API docs: `http://localhost:8090/docs`
 
 ### Local development
 
@@ -58,43 +71,14 @@ cd data360-mcp
 uv run uvicorn data360.server:app --host 0.0.0.0 --port 8000
 
 # Terminal 2 — Django app
-uv run python manage.py runserver 8080
-
-# Verify MCP connectivity
-uv run python scripts/probe_mcp.py
+uv run python manage.py runserver 8090
 ```
 
 ---
 
 ## API
 
-### `POST /contextualize`
-
-**Request**
-```json
-{
-  "claim": "Argentina's poverty rate reached 39.2% in 2022",
-  "context": "optional background",
-  "language": "es",
-  "preferred_country": "ARG"
-}
-```
-
-**Response** (abbreviated)
-```json
-{
-  "status": "ok",
-  "trace_id": "...",
-  "is_verifiable": true,
-  "indicator_code": "SI_POV_NAHC",
-  "indicator_name": "Poverty headcount ratio",
-  "narrative": "La tasa de pobreza en Argentina fue [[SI_POV_NAHC_ARG_2022:39.2]]% en 2022...",
-  "narrative_segments": [...],
-  "chart_spec": { },
-  "claim_set": [...],
-  "tool_trace": [...]
-}
-```
+Full interactive documentation is available at `/docs` (Scalar UI) once the app is running.
 
 ---
 
@@ -104,14 +88,95 @@ All settings are read from environment variables (see `.env.example`):
 
 ---
 
-## Project layout
+## Technical Documentation
+
+### Architecture Overview
+
+Datilia is composed of two independent services that communicate over HTTP:
 
 ```
-ai/           LLM client, MCP client, prompts, agentic tool loop
-api/          Django views, serializers, URL routing
-pipeline/     Orchestrator + claim extraction, chart building, tag verification
-scripts/      Developer utilities (probe_mcp.py)
-tests/        Test suite
-config.py     Pydantic settings
-manage.py     Django CLI
+┌─────────────────────────────────────────────────────┐
+│                   Django App (:8090)                │
+│                                                     │
+│  POST /contextualize                                │
+│       │                                             │
+│       ▼                                             │
+│  1. Claim extraction  ──► LLM (structured output)  │
+│  2. Agent tool loop   ──► MCP client ──────────────┼──► Data360 MCP (:8000)
+│  3. Data extraction   ──► parse tool trace          │         │
+│  4. Chart selection   ──► LLM (structured output)  │    World Bank Data360 API
+│  5. Chart building    ──► Vega-Lite spec builder    │
+│                                                     │
+│  SQLite / ORM persistence (runs, corrections)       │
+└─────────────────────────────────────────────────────┘
 ```
+---
+
+### Data360 API Integration Methodology
+
+Datilia fetches all World Bank data through the **[data360-mcp](https://github.com/worldbank/data360-mcp)** server — an open-source MCP (Model Context Protocol) server developed by the World Bank's AI for Data team. Rather than calling the Data360 REST API directly, Datilia's agent connects to this MCP server and uses its tools as callable functions.
+
+**Why MCP?** The raw Data360 API requires knowing indicator IDs, country codes, and filter parameters upfront. The MCP server abstracts that complexity: it provides search, validation, and retrieval tools designed specifically for LLM agents, including server-side country coverage checks and chain-of-thought guidance resources.
+
+---
+
+### Security & Data Protocols
+
+**Data provenance.** All data served by Datilia originates from the World Bank Data360 platform via the official MCP server. No data is fabricated or cached beyond the single run stored in SQLite. The indicator name, source, unit, and any stated limitations are captured from the MCP response and stored alongside each run.
+
+**No user data retention beyond runs.** The only data persisted is the claim text, the agent trace, and the resulting chart spec — all scoped to a single `trace_id`. There is no user authentication layer in the prototype; access control is the operator's responsibility when deploying behind a reverse proxy.
+
+**LLM output validation.** Both LLM calls (claim extraction and chart selection) use structured output with Pydantic schemas enforced via the OpenAI `parse` API, preventing free-form text from reaching downstream rendering logic.
+
+**Dependency surface.** The MCP server runs in an isolated container with no write access to the host filesystem. The Django app runs as a non-root user inside its container. Gunicorn is fronted by Nginx in production deployments.
+
+---
+
+## User Guide
+
+Once the app is running at `http://localhost:8090`, there are three main pages:
+
+### Frontend Sandbox (`/`)
+
+The main interface for exploring claims in a journalistic text.
+
+1. **Paste a text** — any news article or paragraph in any language. The model defaults to Spanish output but adapts to the input language.
+2. **Click "Contextualizar"** (or press `Ctrl+Enter`) — the app calls `/extract-claims` and highlights each detected verifiable statistical claim inline.
+3. **Click a highlighted claim** — this triggers the full `/contextualize` pipeline for that specific claim. A spinner appears while the agent searches Data360.
+4. **Review the result card** — each result shows:
+   - The matched indicator and data source
+   - A narrative paragraph contextualizing the claim with real data
+   - An interactive Vega-Lite chart
+5. **Corrections** — if the chart type or data is not ideal, use the correction field to send a natural-language instruction (e.g. *"show only Latin American countries"* or *"use a line chart instead"*). The app will re-run chart selection or the full pipeline accordingly.
+6. **Export to Datawrapper** — if a Datawrapper API key is configured, the chart can be published directly from the result card.
+
+**Color coding of highlighted claims:**
+- Yellow — pending / not yet processed
+- Green — successfully contextualized
+- Gray — no matching indicator found (`is_verifiable: false`)
+- Red — pipeline error
+
+### Run History (`/history`)
+
+Lists all previous contextualization runs with their claim text, indicator matched, and status. Click any row to open the full run detail.
+
+### API Documentation (`/docs`)
+
+Interactive OpenAPI reference (Scalar UI) for all endpoints. Useful for integrating Datilia into other tools or testing the API directly from the browser.
+
+---
+
+## Sustainability & Maintenance
+
+Datilia is a working prototype built around open standards:
+
+- **MCP** (Model Context Protocol) for tool use — any MCP-compatible data source can be swapped in
+- **Vega-Lite** for visualization — specs are portable and embeddable
+- **Datawrapper** integration for publication-ready chart export
+- **SQLite** persistence with a clean Django ORM schema — trivially migrated to Postgres
+
+**Sustainability model.** A production-ready version of this tool could be offered as a SaaS to newsrooms and other organizations that work with development data — providing a revenue stream that directly funds the AI token costs for NGO and non-commercial users. Self-hosting is always an option since the project is fully open source under MIT. On the data side, scaling to cover additional datasets beyond Data360 (e.g. UN databases, national statistics offices) would meaningfully expand the tool's utility and reach.
+
+---
+
+**Prototype constraints.** The static HTML frontend (`static/`) and SQLite database reflect the nature of this project as a hackathon prototype — chosen for simplicity and zero-dependency deployment. A production version would naturally replace these with a React (or similar) frontend and a more robust database such as PostgreSQL; both are straightforward swaps given that the Django ORM abstracts the database layer and the frontend communicates exclusively through the REST API.

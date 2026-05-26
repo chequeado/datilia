@@ -18,5 +18,6 @@ urlpatterns = [
     path("", _serve("contextualize-text.html"), name="home"),
     path("history", _serve("history.html"), name="history"),
     path("run/<uuid:trace_id>", _serve("run.html"), name="run-detail-page"),
+    path("docs", _serve("docs.html"), name="docs"),
     path("", include("api.urls")),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

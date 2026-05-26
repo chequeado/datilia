@@ -89,7 +89,7 @@ top_k vs top_k_others: use top_k_others when a specific subject is highlighted; 
 
 COMPARABILITY RULE: If a Limitation note states the data should not be used for cross-country comparison, OR if the indicator name or definition implies each country uses its own national methodology (making absolute values inherently non-comparable), avoid cross_sectional/top_k/top_k_others/distribution/breakdown_comparison. Use line or line_dots with color separation instead, showing each country's own trend.
 
-AXIS INTEGRITY: The value axis on bar charts (top_k, top_k_others, cross_sectional, distribution, stacked_bar) MUST always start at zero — never truncate. A bar whose length does not start at zero is a misleading chart. Line charts may use a non-zero baseline only when showing a trend where the variation matters more than the absolute level.
+AXIS INTEGRITY: The value axis MUST always start at zero — never truncat, special when it's the Y axis.
 
 Threshold guidance: near a threshold (e.g. 7 or 9 areas when threshold is 8), prefer the simpler chart.
 

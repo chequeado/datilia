@@ -3,8 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chequeado Contextualizer</title>
+  <title>Datilia — Contextualizador de datos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: { sans: ['Archivo', 'ui-sans-serif', 'system-ui', 'sans-serif'] } } }
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@6"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
@@ -24,24 +32,26 @@
     <!-- Header -->
     <header class="mb-8">
       <div class="flex items-center justify-between gap-4">
-        <a href="https://chequeado.com" title="Ir a Chequeado" target="_blank" class="shrink-0">
-          <img src="/static/logo01.png" alt="Chequeado" class="h-7 w-auto" />
-        </a>
-        <nav class="flex items-center gap-2">
-          <a href="/"
-            class="px-4 py-1.5 rounded-lg bg-[#354052] text-white text-sm font-medium hover:bg-[#D6003F] transition-colors">
-            Nueva consulta
+        <div class="shrink-0 flex items-center gap-2">
+          <a href="/" title="Datilia" class="text-2xl font-bold text-[#354052] tracking-tight">Datilia</a>
+          <span class="text-xs text-gray-400 font-normal ml-3">por</span>
+          <a href="https://chequeado.com" target="_blank">
+            <img src="/static/logo01.png" alt="Chequeado" class="h-4 w-auto opacity-70" />
           </a>
+        </div>
+        <nav class="flex items-center gap-2">
           <a href="/history"
             class="px-4 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">
             Historial
           </a>
+          <a href="/docs"
+            class="px-4 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">
+            Docs
+          </a>
         </nav>
       </div>
       <div class="mt-5">
-        <h1 class="text-2xl font-bold text-gray-900">¿Qué dicen los datos?</h1>
-        <p class="text-sm text-gray-400 mt-1">Extrae afirmaciones de un texto y contextualizalas con datos del Banco Mundial.</p>
-        <p class="text-xs text-gray-400 mt-1">Prototipo desarrollado en el marco de la <span class="font-medium">Media Party × World Bank Data360 Global Challenge</span>.</p>
+        <p class="text-sm text-gray-800 mt-2">Pegá un texto periodístico y Datilia identifica las afirmaciones verificables, busca indicadores del Banco Mundial y genera un contexto con datos.</p>
       </div>
     </header>
 
@@ -62,6 +72,12 @@
         </button>
         <p class="text-xs text-gray-400">Ctrl+Enter para enviar</p>
       </div>
+    </div>
+
+    <!-- Examples section -->
+    <div id="examplesSection" class="mb-6">
+      <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Ejemplos para probar</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="exampleCards"></div>
     </div>
 
     <!-- Extraction loading -->
@@ -95,9 +111,71 @@
       <div id="claimsList" class="space-y-3"></div>
     </div>
 
+    <div>
+      <p class="text-sm text-gray-800 mt-2">Prototipo desarrollado en el marco de la <span class="font-medium">Media Party × World Bank Data360 Global Challenge</span>.</p>
+    </div>
+
   </div>
 
   <script>
+    // ── Examples (placeholder data — replace with real JSONs when available) ──
+
+    const EXAMPLES = [
+      {
+        lang: 'ES',
+        label: 'Pobreza en Argentina',
+        snippet: 'La tasa de pobreza en Argentina alcanzó el 40,1% en 2023…',
+        text: `La tasa de pobreza en Argentina alcanzó el 40,1% en 2023, según datos oficiales del INDEC. Según el gobierno, este valor representa una baja respecto a los niveles históricos, aunque organizaciones sociales cuestionan la metodología. La tasa de desempleo también se ubicó en 6,9%, mientras que la inflación acumulada del año superó el 211%.`,
+      },
+      {
+        lang: 'ES',
+        label: 'Deuda externa de Brasil',
+        snippet: 'Brasil redujo su deuda externa como porcentaje del PBI en los últimos años…',
+        text: `Brasil redujo su deuda externa como porcentaje del PBI en los últimos cinco años, pasando del 37% al 29% entre 2018 y 2023. El ministro de economía señaló que esto se debe a políticas de desendeudamiento activas, aunque economistas advierten que la deuda pública interna sigue creciendo y representa el 88% del PBI.`,
+      },
+      {
+        lang: 'EN',
+        label: 'Global CO₂ emissions',
+        snippet: 'Global CO₂ emissions reached a record 37.4 billion tonnes in 2023…',
+        text: `Global CO₂ emissions reached a record 37.4 billion tonnes in 2023, driven primarily by coal use in Asia. According to the International Energy Agency, China alone accounts for 31% of global emissions, while the United States contributes 14%. Renewable energy capacity grew by 50% last year, but experts warn it is not fast enough to offset fossil fuel growth.`,
+      },
+      {
+        lang: 'EN',
+        label: 'Child mortality in Sub-Saharan Africa',
+        snippet: 'Child mortality in Sub-Saharan Africa has fallen by half since 2000…',
+        text: `Child mortality in Sub-Saharan Africa has fallen by more than half since 2000, from 163 deaths per 1,000 live births to 74 in 2022. The UN credits this progress to expanded vaccination programmes and improved access to clean water. Despite the gains, the region still accounts for 57% of all under-5 deaths globally.`,
+      },
+    ];
+
+    function initExamples() {
+      const container = document.getElementById('exampleCards');
+      const langColors = { ES: 'bg-blue-50 text-blue-600', EN: 'bg-emerald-50 text-emerald-600' };
+      EXAMPLES.forEach((ex, i) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'text-left bg-white border border-gray-200 rounded-xl p-4 hover:border-[#354052] hover:shadow-sm transition-all group';
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-700 group-hover:text-[#354052] transition-colors">${escapeHtml(ex.label)}</span>
+            <span class="text-xs font-mono font-semibold px-1.5 py-0.5 rounded ${langColors[ex.lang] || 'bg-gray-100 text-gray-500'}">${escapeHtml(ex.lang)}</span>
+          </div>
+          <p class="text-xs text-gray-400 leading-relaxed line-clamp-2">${escapeHtml(ex.snippet)}</p>
+        `;
+        card.onclick = () => loadExample(i);
+        container.appendChild(card);
+      });
+    }
+
+    function loadExample(i) {
+      const ex = EXAMPLES[i];
+      document.getElementById('text').value = ex.text;
+      document.getElementById('examplesSection').classList.add('hidden');
+      document.getElementById('text').focus();
+      document.getElementById('text').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // ── App state ────────────────────────────────────────────────────────────
+
     let CLAIMS = [];
     let ARTICLE_TEXT = '';
 
@@ -153,6 +231,7 @@
       document.getElementById('extractLoading').classList.remove('hidden');
       document.getElementById('claimsSection').classList.add('hidden');
       document.getElementById('highlightSection').classList.add('hidden');
+      document.getElementById('examplesSection').classList.add('hidden');
 
       try {
         const resp = await fetch('/extract-claims', {
@@ -993,13 +1072,17 @@
       document.getElementById('inputSection').classList.remove('hidden');
       document.getElementById('highlightSection').classList.add('hidden');
       document.getElementById('claimsSection').classList.add('hidden');
+      document.getElementById('examplesSection').classList.remove('hidden');
       document.getElementById('extractBtn').disabled = false;
+      document.getElementById('text').value = '';
       hideError();
     }
 
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.key === 'Enter') extractClaims();
     });
+
+    initExamples();
   </script>
 </body>
 </html>
