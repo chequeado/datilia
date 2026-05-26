@@ -150,9 +150,7 @@ def _tooltips(fields: list[str], y_field: str, val_fmt: str) -> list[dict]:
     for col in fields:
         tip: dict = {"field": col, "title": _field_label(col)}
         if col == "time_period":
-            tip["type"] = "temporal"
-            tip["timeUnit"] = "utcyear"
-            tip["format"] = "%Y"
+            tip["type"] = "ordinal"
         elif col == y_field:
             tip["type"] = "quantitative"
             tip["format"] = val_fmt
@@ -262,7 +260,12 @@ def build_topk_bar_spec(
     top_n: int = 15,
 ) -> dict:
     """Horizontal bars: top_n areas by value descending."""
-    rows = sorted(records, key=lambda r: r.get(y_field, 0), reverse=True)[:top_n]
+    if x_field == "time_period":
+        rows = sorted(records, key=lambda r: r.get(x_field, ""), reverse=True)[:top_n]
+        y_sort = "descending"
+    else:
+        rows = sorted(records, key=lambda r: r.get(y_field, 0), reverse=True)[:top_n]
+        y_sort = "-x"
     tt_fmt = _tt_format(_max_abs(rows, y_field), unit)
     tooltip_fields = list(dict.fromkeys([x_field, "time_period", y_field]))
 
@@ -274,7 +277,7 @@ def build_topk_bar_spec(
         "data": {"values": rows},
         "mark": {"type": "bar", "cornerRadiusTopRight": 3, "cornerRadiusBottomRight": 3},
         "encoding": {
-            "y": {"field": x_field, "type": "nominal", "sort": f"-x", "axis": _category_axis()},
+            "y": {"field": x_field, "type": "nominal", "sort": y_sort, "axis": _category_axis()},
             "x": {
                 "field": y_field,
                 "type": "quantitative",
@@ -409,7 +412,13 @@ def build_cross_sectional_spec(
     highlight: str | None = None,
 ) -> dict:
     """Horizontal bars: single year, few areas, direct comparison."""
-    rows = sorted(records, key=lambda r: r.get(y_field, 0), reverse=True)
+    time_axis = x_field == "time_period"
+    if time_axis:
+        rows = sorted(records, key=lambda r: r.get(x_field, ""), reverse=True)
+        y_sort = "descending"
+    else:
+        rows = sorted(records, key=lambda r: r.get(y_field, 0), reverse=True)
+        y_sort = "-x"
     tt_fmt = _tt_format(_max_abs(rows, y_field), unit)
     tooltip_fields = list(dict.fromkeys([x_field, "time_period", y_field]))
     cf = color_field or x_field
@@ -421,7 +430,7 @@ def build_cross_sectional_spec(
         "data": {"values": rows},
         "mark": {"type": "bar", "cornerRadiusTopRight": 3, "cornerRadiusBottomRight": 3},
         "encoding": {
-            "y": {"field": x_field, "type": "nominal", "sort": "-x", "axis": _category_axis()},
+            "y": {"field": x_field, "type": "nominal", "sort": y_sort, "axis": _category_axis()},
             "x": {
                 "field": y_field,
                 "type": "quantitative",

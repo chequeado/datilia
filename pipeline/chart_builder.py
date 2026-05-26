@@ -22,7 +22,8 @@ def build(data_context: dict[str, Any], chart_params: Any) -> dict | None:
     unit = data_context.get("unit") or None
     time_range = data_context.get("time_range", {})
 
-    strategy   = chart_params.strategy
+    strategy = chart_params.strategy
+
     x_field    = chart_params.x_field
     y_field    = chart_params.y_field
     color_field = chart_params.color_field
@@ -36,6 +37,14 @@ def build(data_context: dict[str, Any], chart_params: Any) -> dict | None:
         str(start_year) if start_year == end_year
         else f"{start_year}–{end_year}"
     )
+
+    _SNAPSHOT_STRATEGIES = {"cross_sectional", "distribution", "top_k", "top_k_others"}
+    if strategy in _SNAPSHOT_STRATEGIES and end_year:
+        snapshot_year = str(end_year)
+        filtered = [r for r in records if str(r.get("time_period", "")) == snapshot_year]
+        if filtered:
+            records = filtered
+
     title = {
         "text": chart_params.title if chart_params.title else indicator_name,
         "subtitle": chart_params.subtitle if chart_params.subtitle else (f"{year_label} · {unit}" if unit else year_label),
