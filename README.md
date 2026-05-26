@@ -4,11 +4,14 @@
 
 Given a journalistic text, Datilia identifies verifiable statistical claims, searches the [World Bank Data360](https://data360.worldbank.org) database via an AI agent, and returns a narrative paragraph with data context and a Vega-Lite chart.
 
+<img width="1408" height="812" alt="Captura de pantalla de 2026-05-26 17-25-27" src="https://github.com/user-attachments/assets/2d22528b-b450-4ecf-ae85-33753afaa393" />
+
 ---
 
 ## Live demo
 
-**[datilia.chequeado.com](https://datilia.chequeado.com)**
+**[datilia.chequeado.com](https://datilia.chequeado.com)** |
+[Live Example](https://datilia.chequeado.com/run/63f479fe-7674-44e4-839e-315cb21dd2dc)
 
 The deployed prototype is password-protected:
 
@@ -16,6 +19,28 @@ The deployed prototype is password-protected:
 |---|---|
 | User | `data360` |
 | Password | `data360challenge` |
+
+---
+
+## Table of Contents
+
+- [Live demo](#live-demo)
+- [What we built](#what-we-built)
+- [Stack](#stack)
+- [Quickstart](#quickstart)
+  - [Docker (recommended)](#docker-recommended)
+  - [Local development](#local-development)
+- [API](#api)
+- [Configuration](#configuration)
+- [Technical Documentation](#technical-documentation)
+  - [Architecture Overview](#architecture-overview)
+  - [Data360 API Integration Methodology](#data360-api-integration-methodology)
+  - [Security & Data Protocols](#security--data-protocols)
+- [User Guide](#user-guide)
+  - [Frontend Sandbox (`/`)](#frontend-sandbox-)
+  - [Run History (`/history`)](#run-history-history)
+  - [API Documentation (`/docs`)](#api-documentation-docs)
+- [Sustainability & Maintenance](#sustainability--maintenance)
 
 ---
 
