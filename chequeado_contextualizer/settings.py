@@ -72,6 +72,12 @@ CORS_ALLOWED_ORIGINS = [] if CORS_ALLOW_ALL_ORIGINS else [
     o.strip() for o in app_settings.CORS_ALLOWED_ORIGINS.split(",") if o.strip()
 ]
 
+_csrf_raw = app_settings.CSRF_TRUSTED_ORIGINS.strip()
+CSRF_TRUSTED_ORIGINS = (
+    [o.strip() for o in _csrf_raw.split(",") if o.strip()]
+    if _csrf_raw else []
+)
+
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_AUTHENTICATION_CLASSES": [],

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     DJANGO_DEBUG: bool = True
     ALLOWED_HOSTS: str = "*"
     CORS_ALLOWED_ORIGINS: str = "*"
+    CSRF_TRUSTED_ORIGINS: str = ""
 
 
 settings = Settings()
