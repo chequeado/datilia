@@ -3,7 +3,7 @@
   "info": {
     "title": "Datilia API",
     "version": "1.0.0",
-    "description": "## What is Datilia?\n\nDatilia is a prototype tool developed by [Chequeado](https://chequeado.com) for the **Media Party × World Bank Data360 Global Challenge**. It takes journalistic text, automatically extracts verifiable statistical claims, cross-references them against the [World Bank Data360](https://data360.worldbank.org) database, and returns structured data context with a narrative and a Vega-Lite chart.\n\n**Live demo:** [datilia.chequeado.com](https://datilia.chequeado.com) — user: `data360` / password: `data360challenge`\n",
+    "description": "## What is Datilia?\n\nDatilia is a prototype tool developed by [Chequeado](https://chequeado.com) for the [**Media Party × World Bank Data360 Global Challenge**](https://mediaparty.org/en-global-digital-challenge-360/). It takes journalistic text, automatically extracts verifiable statistical claims, cross-references them against the [World Bank Data360](https://data360.worldbank.org) database, and returns structured data context with a narrative and a Vega-Lite chart.\n\n**Live demo:** [datilia.chequeado.com](https://datilia.chequeado.com) — user: `data360` / password: `data360challenge`\n",
     "contact": {
       "name": "Chequeado",
       "url": "https://chequeado.com"
